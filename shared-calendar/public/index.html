@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Shared Calendar</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <!-- Sign in -->
+  <main id="login" class="login" hidden>
+    <form id="loginForm" class="card login-card">
+      <h1>Shared Calendar</h1>
+      <p class="muted">Sign in to see and add events.</p>
+      <label>Name <input name="name" autocomplete="username" required></label>
+      <label>Password <input name="password" type="password" autocomplete="current-password" required></label>
+      <p id="loginError" class="error" role="alert"></p>
+      <button class="btn primary" type="submit">Sign in</button>
+    </form>
+  </main>
+
+  <!-- Calendar -->
+  <div id="app" hidden>
+    <header class="topbar">
+      <div class="nav">
+        <button class="btn icon" id="prev" aria-label="Previous month">‹</button>
+        <h1 id="monthLabel"></h1>
+        <button class="btn icon" id="next" aria-label="Next month">›</button>
+        <button class="btn" id="today">Today</button>
+      </div>
+      <div class="right">
+        <div id="legend" class="legend"></div>
+        <button class="btn primary" id="addBtn">+ New</button>
+        <button class="btn ghost" id="logout">Sign out</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <section class="month" aria-label="Month view">
+        <div class="weekdays">
+          <div>Sun</div><div>Mon</div><div>Tue</div><div>Wed</div><div>Thu</div><div>Fri</div><div>Sat</div>
+        </div>
+        <div id="grid" class="grid"></div>
+      </section>
+
+      <aside class="agenda">
+        <h2 id="agendaTitle">Upcoming</h2>
+        <ul id="agendaList"></ul>
+      </aside>
+    </div>
+    <div id="toast" class="toast" role="status" hidden></div>
+  </div>
+
+  <!-- Add / edit dialog -->
+  <dialog id="dialog">
+    <form id="eventForm" method="dialog" class="event-form">
+      <h2 id="dialogTitle">New event</h2>
+      <div class="segmented" role="radiogroup" aria-label="Type">
+        <label><input type="radio" name="type" value="event" checked><span>Event</span></label>
+        <label><input type="radio" name="type" value="appointment"><span>Appointment</span></label>
+      </div>
+      <label>Title <input name="title" maxlength="120" required></label>
+      <div class="row">
+        <label>Date <input name="date" type="date" required></label>
+        <label>End date <input name="endDate" type="date"></label>
+      </div>
+      <label class="check"><input type="checkbox" name="allDay"> All day</label>
+      <div class="row times">
+        <label>Start <input name="start" type="time"></label>
+        <label>End <input name="end" type="time"></label>
+      </div>
+      <label>Location <input name="location" maxlength="200"></label>
+      <label>Notes <textarea name="notes" rows="3" maxlength="2000"></textarea></label>
+      <p id="meta" class="muted small"></p>
+      <p id="formError" class="error" role="alert"></p>
+      <div class="actions">
+        <button type="button" class="btn danger" id="deleteBtn" hidden>Delete</button>
+        <span class="spacer"></span>
+        <button type="button" class="btn ghost" id="cancelBtn">Cancel</button>
+        <button type="submit" class="btn primary" id="saveBtn">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="app.js"></script>
+</body>
+</html>
