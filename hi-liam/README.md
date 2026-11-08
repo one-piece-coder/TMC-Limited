@@ -3,6 +3,7 @@
 A tiny web app. Each time you push the button it:
 
 - says **"Hi Liam!"** on screen and out loud
+- plays a short, happy tune (an original melody)
 - changes the background and text colors
 - changes the font
 
@@ -13,6 +14,7 @@ Open `index.html` in a web browser. You don't need to install anything. Turn you
 ## How it works
 
 - `speechSynthesis` is the browser's built-in voice. It reads "Hi Liam!" aloud.
+- `playTune()` uses the Web Audio API to play the notes in `TUNE`, one "boop" at a time. You can change the notes to write your own song.
 - `colors` is a list of background and text color pairs that are easy to read together.
 - `fonts` is a list of Google Fonts.
 - `pickNew()` picks a random color pair and font, and never the same one twice in a row.

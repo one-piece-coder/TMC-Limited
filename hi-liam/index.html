@@ -105,9 +105,66 @@
     return next;
   }
 
+  // ---- The happy tune (an original melody, made with the browser's sound maker) ----
+  let audio = null;
+  let tuneNodes = [];
+
+  // Note name -> frequency in Hz
+  const NOTES = {
+    C4: 261.63, D4: 293.66, E4: 329.63, F4: 349.23, G4: 392.0, A4: 440.0,
+    B4: 493.88, C5: 523.25, D5: 587.33, E5: 659.25, G5: 783.99,
+  };
+
+  // Each step is [note, length in beats]. "-" means a short rest.
+  const TUNE = [
+    ["C5", 0.5], ["G4", 0.5], ["E4", 0.5], ["G4", 0.5],
+    ["A4", 0.5], ["G4", 0.5], ["E4", 1],
+    ["F4", 0.5], ["A4", 0.5], ["C5", 0.5], ["D5", 0.5],
+    ["E5", 0.75], ["-", 0.25], ["D5", 0.5], ["C5", 0.5],
+    ["G4", 0.5], ["E5", 0.5], ["G5", 1.5],
+  ];
+  const BEAT = 0.22; // seconds per beat
+
+  function stopTune() {
+    tuneNodes.forEach(function (osc) { try { osc.stop(); } catch (e) {} });
+    tuneNodes = [];
+  }
+
+  function playTune() {
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      audio.resume();
+    } catch (e) {
+      return; // no sound support, skip the tune
+    }
+    stopTune();
+    let time = audio.currentTime + 0.05;
+    TUNE.forEach(function (step) {
+      const length = step[1] * BEAT;
+      if (step[0] !== "-") {
+        const osc = audio.createOscillator();
+        const volume = audio.createGain();
+        osc.type = "triangle";
+        osc.frequency.value = NOTES[step[0]];
+        // Quick fade in and out so each note sounds like a little "boop"
+        volume.gain.setValueAtTime(0, time);
+        volume.gain.linearRampToValueAtTime(0.25, time + 0.02);
+        volume.gain.exponentialRampToValueAtTime(0.001, time + length * 0.95);
+        osc.connect(volume).connect(audio.destination);
+        osc.start(time);
+        osc.stop(time + length);
+        tuneNodes.push(osc);
+      }
+      time += length;
+    });
+  }
+
+  // ---- Say "Hi Liam!", then play the tune when the voice is done ----
   function sayHi() {
+    stopTune();
     if (!("speechSynthesis" in window)) {
       note.hidden = false;
+      playTune();
       return;
     }
     try {
@@ -115,13 +172,29 @@
       const words = new SpeechSynthesisUtterance("Hi Liam!");
       words.rate = 1;
       words.pitch = 1.1;
+      let played = false;
+      function thenTune() {
+        if (played) return;
+        played = true;
+        playTune();
+      }
+      words.onend = thenTune;
+      words.onerror = thenTune;
+      setTimeout(thenTune, 2500); // backup in case the voice never says it's done
       window.speechSynthesis.speak(words);
     } catch (e) {
       note.hidden = false;
+      playTune();
     }
   }
 
   button.addEventListener("click", function () {
+    // Wake up the sound maker during the tap (phones require this)
+    try {
+      if (!audio) audio = new (window.AudioContext || window.webkitAudioContext)();
+      audio.resume();
+    } catch (e) {}
+
     message.textContent = "Hi Liam!";
 
     lastColor = pickNew(colors.length, lastColor);
