@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Hi Liam</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      margin: 0;
+      background: #f4f6fb;
+    }
+    button {
+      font-size: 1.5rem;
+      padding: 0.75rem 2rem;
+      border: none;
+      border-radius: 12px;
+      background: #3b6cff;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { background: #2a55d6; }
+    #message {
+      font-size: 3rem;
+      font-weight: bold;
+      margin-top: 1.5rem;
+      min-height: 4rem;
+    }
+  </style>
+</head>
+<body>
+  <button id="greet-button">Push me</button>
+  <p id="message"></p>
+
+  <script>
+    // When the button is clicked, show the greeting.
+    const button = document.getElementById("greet-button");
+    const message = document.getElementById("message");
+
+    button.addEventListener("click", function () {
+      message.textContent = "Hi Liam!";
+    });
+  </script>
+</body>
+</html>
