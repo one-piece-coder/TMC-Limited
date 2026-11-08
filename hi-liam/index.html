@@ -181,6 +181,49 @@
     });
   }
 
+  // ---- Pick a natural-sounding voice, switching man / lady each time ----
+  // Browsers don't say whether a voice is a man or a lady, so we match on
+  // the names of common voices on iPhone, Mac, Windows, Android and Chrome.
+  const LADY_NAMES = /samantha|ava|allison|susan|zoe|karen|moira|tessa|fiona|victoria|serena|kate|nicky|siri.*(female|voice [24])|aria|jenny|zira|hazel|libby|sonia|michelle|emma|ana|natasha|female|google us english/i;
+  const MAN_NAMES = /alex|daniel|fred|tom|aaron|arthur|oliver|rishi|gordon|lee|evan|nathan|reed|siri.*(male|voice [13])|david|guy|mark|george|ryan|christopher|eric|andrew|brian|davis|william|male/i;
+  // Higher-quality voices usually have one of these words in their name
+  const GOOD_WORDS = /natural|neural|online|premium|enhanced|siri|google/i;
+
+  let voices = [];
+  let nextIsMan = true;
+
+  function loadVoices() {
+    try {
+      voices = window.speechSynthesis.getVoices().filter(function (v) {
+        return /^en/i.test(v.lang);
+      });
+    } catch (e) { voices = []; }
+  }
+  if ("speechSynthesis" in window) {
+    loadVoices();
+    window.speechSynthesis.onvoiceschanged = loadVoices;
+  }
+
+  function score(v) {
+    let s = 0;
+    if (GOOD_WORDS.test(v.name)) s += 10;
+    if (/en[-_]US/i.test(v.lang)) s += 2;
+    if (v.localService) s += 1; // works without internet
+    if (/compact|novelty|whisper|bad news|bells|zarvox|trinoids|albert|jester|organ|bubbles|cellos/i.test(v.name)) s -= 50;
+    return s;
+  }
+
+  function bestVoice(wantMan) {
+    const pattern = wantMan ? MAN_NAMES : LADY_NAMES;
+    const other = wantMan ? LADY_NAMES : MAN_NAMES;
+    const matches = voices.filter(function (v) {
+      // "female" contains "male", so check the other list too
+      return pattern.test(v.name) && !(wantMan && other.test(v.name) && /female/i.test(v.name));
+    });
+    matches.sort(function (a, b) { return score(b) - score(a); });
+    return matches[0] || null;
+  }
+
   // ---- Say "Hi Liam!", then play the tune when the voice is done ----
   function sayHi() {
     stopTune();
@@ -191,9 +234,20 @@
     }
     try {
       window.speechSynthesis.cancel(); // stop the last one if you push fast
-      const words = new SpeechSynthesisUtterance("Hi Liam!");
-      words.rate = 1;
-      words.pitch = 1.1;
+      const words = new SpeechSynthesisUtterance("Hi, Liam!");
+      if (!voices.length) loadVoices();
+      const wantMan = nextIsMan;
+      nextIsMan = !nextIsMan; // switch for next time
+      const voice = bestVoice(wantMan);
+      words.rate = 0.95; // a touch slower sounds more natural
+      if (voice) {
+        words.voice = voice;
+        words.lang = voice.lang;
+        words.pitch = 1; // real voices sound best unchanged
+      } else {
+        // No man/lady voice found: fake it by making the voice lower or higher
+        words.pitch = wantMan ? 0.7 : 1.4;
+      }
       let played = false;
       function thenTune() {
         if (played) return;
