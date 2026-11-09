@@ -20,7 +20,7 @@
     --good:#4ade80; --good-soft:#173525; --bad:#f87171; --bad-soft:#3d1c1c; --warn:#facc15;
     --input:#131921; --override:#3a3215;
     --grad:linear-gradient(135deg,#0b1533 0%,#102a63 35%,#0b4652 70%,#0d5c55 100%);
-    --teal:#2dd4bf; --fcst:#1f6f68;
+    --teal:#2dd4bf; --fcst:#1f6f68; color-scheme:dark;
   }
 }
 :root[data-theme="dark"]{
@@ -29,11 +29,11 @@
   --good:#4ade80; --good-soft:#173525; --bad:#f87171; --bad-soft:#3d1c1c; --warn:#facc15;
   --input:#131921; --override:#3a3215;
   --grad:linear-gradient(135deg,#0b1533 0%,#102a63 35%,#0b4652 70%,#0d5c55 100%);
-  --teal:#2dd4bf; --fcst:#1f6f68;
+  --teal:#2dd4bf; --fcst:#1f6f68; color-scheme:dark;
 }
 *{box-sizing:border-box}
 body{margin:0;min-height:100vh;background-color:#1d4ed8;background:var(--grad);background-attachment:fixed;color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-header{background:rgba(255,255,255,.08);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.18);color:#fff;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+header{background:rgba(255,255,255,.08);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid rgba(255,255,255,.18);color:#fff;padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
 h1{font-size:18px;margin:0}
 header .sub{color:rgba(255,255,255,.8)}
 header label.f{color:rgba(255,255,255,.85)}
@@ -90,6 +90,12 @@ td input.num{width:100px;padding:4px 6px}
 .legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:5px}
 svg text{fill:var(--muted);font-size:11px}
 .hidden{display:none}
+.modal{position:fixed;inset:0;background:rgba(5,15,35,.55);display:flex;align-items:center;justify-content:center;padding:16px;z-index:20}
+.modal[hidden]{display:none}
+.modal .box{background:var(--panel);color:var(--ink);border-radius:12px;padding:18px;max-width:420px;width:100%;box-shadow:0 12px 40px rgba(0,0,0,.35)}
+.modal .box p{margin:0 0 14px}
+.modal .acts{display:flex;gap:8px;justify-content:flex-end}
+textarea{font:12px/1.4 ui-monospace,Menlo,Consolas,monospace;color:var(--ink);background:var(--input);border:1px solid var(--line);border-radius:6px;padding:8px;width:100%;min-height:90px;resize:vertical}
 .toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
 .toast.show{opacity:1}
 @media (max-width:600px){
@@ -127,6 +133,8 @@ svg text{fill:var(--muted);font-size:11px}
   <section id="tab-fcst" class="hidden"></section>
   <section id="tab-settings" class="hidden"></section>
 </main>
+<div class="modal" id="modal" hidden><div class="box" role="dialog" aria-modal="true" aria-labelledby="modalMsg"><p id="modalMsg"></p>
+  <div class="acts"><button id="modalNo">Cancel</button><button class="primary" id="modalYes">Yes, replace</button></div></div></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -439,10 +447,12 @@ function rSettings(){
     <label class="f">Week starts on<select id="weekStart"><option value="0" ${st.weekStart==0?'selected':''}>Sunday</option><option value="1" ${st.weekStart==1?'selected':''}>Monday</option><option value="6" ${st.weekStart==6?'selected':''}>Saturday</option></select></label>
   </div></div>
   <div class="panel"><h2>Back up &amp; move your data</h2>
-    <p class="note" style="margin:0 0 10px">Your numbers are saved automatically in this browser on this device. Download a backup regularly, and use it to move to another computer.</p>
-    <div class="row"><button class="primary" id="exportJson">Download backup (.json)</button>
-    <label class="f">Restore backup<input type="file" id="importJson" accept=".json,application/json"></label>
-    <button id="exportCsv">Download ${curY()} daily data (.csv)</button></div></div>
+    <p class="note" style="margin:0 0 10px">Your numbers save automatically in this browser on this device. Copy a backup regularly and keep it somewhere safe (an email to yourself or a note). To move to another computer or browser, paste the backup there and click Restore.</p>
+    <div class="row"><button class="primary" id="exportJson">Copy backup</button>
+    <button id="exportCsv">Copy ${curY()} daily data for Excel</button></div>
+    <label class="f" style="margin-top:12px">Backup text (paste a backup here to restore it)<textarea id="backupText" spellcheck="false" placeholder='{"settings":…,"years":…}'></textarea></label>
+    <div class="row" style="margin-top:8px"><button id="restoreText">Restore pasted backup</button>
+    <label class="f">…or restore from a backup file<input type="file" id="importJson" accept=".json,.txt,application/json,text/plain"></label></div></div>
   <div class="panel"><h2>Try it out</h2><div class="row">
     <button id="demo">Load sample data for ${curY()}</button>
     <button class="danger" id="clearYear">Clear ${curY()} data</button>
@@ -525,9 +535,9 @@ document.addEventListener('click',e=>{
     case 'spread': {
       const yr=Yw(y), w=yr.mw.reduce((a,b)=>a+(+b||0),0);
       if(!w) return toast('Month weights are all zero');
-      if(yr.months.some(m=>m.s||m.g) && !confirm('Replace all 12 monthly budgets with the annual targets spread by weight?')) return;
-      yr.months=yr.mw.map(x=>({s:Math.round(yr.annualS*x/w), g:Math.round(yr.annualG*x/w)}));
-      fixRound(yr); save(); render(); toast('Monthly budgets updated'); break;
+      const go=()=>{ yr.months=yr.mw.map(x=>({s:Math.round(yr.annualS*x/w), g:Math.round(yr.annualG*x/w)})); fixRound(yr); save(); render(); toast('Monthly budgets updated'); };
+      if(yr.months.some(m=>m.s||m.g)) ask('Replace all 12 monthly budgets with the annual targets spread by weight?').then(ok=>ok&&go()); else go();
+      break;
     }
     case 'fromPrior': {
       const py=y-1; if(!S.years[py]) return toast('No '+py+' data to build from');
@@ -535,16 +545,17 @@ document.addEventListener('click',e=>{
       const cs=yearCtx(py,asOf,'s'), cg=yearCtx(py,asOf,'g'), gs=1+S.settings.growS/100, gg=1+S.settings.growG/100;
       const months=[...Array(12)].map((_,m)=>({s:Math.round(monthFc(py,m,asOf,'s',cs)*gs), g:Math.round(monthFc(py,m,asOf,'g',cg)*gg)}));
       if(!months.some(m=>m.s||m.g)) return toast('No '+py+' numbers to build from');
-      if(Yr(y).months.some(m=>m.s||m.g) && !confirm(`Replace ${y} monthly budgets with ${py} actuals/forecast × growth?`)) return;
-      const yr=Yw(y); yr.months=months; yr.annualS=months.reduce((a,m)=>a+m.s,0); yr.annualG=months.reduce((a,m)=>a+m.g,0);
-      save(); render(); toast(y+' budget built from '+py); break;
+      const go=()=>{ const yr=Yw(y); yr.months=months; yr.annualS=months.reduce((a,m)=>a+m.s,0); yr.annualG=months.reduce((a,m)=>a+m.g,0); save(); render(); toast(y+' budget built from '+py); };
+      if(Yr(y).months.some(m=>m.s||m.g)) ask(`Replace ${y} monthly budgets with ${py} actuals/forecast × growth?`).then(ok=>ok&&go()); else go();
+      break;
     }
     case 'dwReset': S.settings.dow=DEF_DW.slice(); save(); render(); break;
-    case 'exportJson': download(`paint-goals-backup-${todayStr()}.json`, JSON.stringify(S,null,1), 'application/json'); break;
+    case 'exportJson': copyText(JSON.stringify(S),'Backup copied — paste it somewhere safe'); break;
+    case 'restoreText': restore($('backupText').value); break;
     case 'exportCsv': exportCsv(y); break;
     case 'demo': demo(y); break;
-    case 'clearYear': if(confirm(`Erase all ${y} budgets and actuals?`)){ delete S.years[y]; save(); render(); toast(y+' cleared'); } break;
-    case 'resetAll': if(confirm('Erase ALL data and settings? Download a backup first if you might need it.')){ S=blank(); save(); render(); toast('Everything erased'); } break;
+    case 'clearYear': ask(`Erase all ${y} budgets and actuals?`,'Erase').then(ok=>{ if(ok){ delete S.years[y]; save(); render(); toast(y+' cleared'); } }); break;
+    case 'resetAll': ask('Erase ALL data and settings? Copy a backup first if you might need it.','Erase everything').then(ok=>{ if(ok){ S=blank(); save(); render(); toast('Everything erased'); } }); break;
   }
 });
 
@@ -554,26 +565,38 @@ function fixRound(yr){ // make rounded months add exactly to the annual targets
     if(diff){ let i=yr.mw.indexOf(Math.max(...yr.mw)); yr.months[i][k]+=diff; }
   }
 }
-function download(name,text,type){
-  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name;
-  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+function ask(msg,yes){ // in-page confirmation (browser pop-ups are blocked in some viewers)
+  return new Promise(res=>{
+    $('modalMsg').textContent=msg; $('modalYes').textContent=yes||'Yes, replace'; $('modal').hidden=false; $('modalYes').focus();
+    const done=v=>{ $('modal').hidden=true; $('modalYes').onclick=$('modalNo').onclick=null; res(v); };
+    $('modalYes').onclick=()=>done(true); $('modalNo').onclick=()=>done(false);
+  });
+}
+function copyText(text,msg){
+  const show=()=>{ const ta=$('backupText'); if(ta){ ta.value=text; ta.focus(); ta.select(); } toast('Press Ctrl+C (⌘C) to copy the selected text'); };
+  try{ navigator.clipboard.writeText(text).then(()=>toast(msg),show); }catch(e){ show(); }
 }
 function exportCsv(y){
-  const rows=[['Date','Day','Budget Sales','Actual Sales','Budget Gallons','Actual Gallons']];
+  const rows=[['Date','Day','Budget Sales','Actual Sales','Budget Gallons','Actual Gallons']]; // tab-separated so it pastes straight into Excel
   for(let s=ds(y,0,1); s<=ds(y,11,31); s=addDays(s,1)) rows.push([s,DOW[dowOf(s)],bud(s,'s').toFixed(2),act(s,'s')??'',bud(s,'g').toFixed(2),act(s,'g')??'']);
-  download(`paint-goals-${y}.csv`, rows.map(r=>r.join(',')).join('\n'), 'text/csv');
+  copyText(rows.map(r=>r.join('\t')).join('\n'), y+' daily data copied — paste into Excel');
 }
 function importJson(file){
   if(!file) return;
   const r=new FileReader();
-  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.years) throw 0;
-      if(!confirm('Replace all current data with this backup?')) return;
-      const b=blank(); d.settings=Object.assign(b.settings,d.settings||{}); S=d; save(); render(); toast('Backup restored');
-    }catch(e){ alert('That file is not a valid backup.'); } };
+  r.onload=()=>restore(r.result);
   r.readAsText(file);
 }
+function restore(text){
+  let d; try{ d=JSON.parse(text); if(!d||!d.years) throw 0; }catch(e){ return toast('That is not a valid backup. Paste the full text from Copy backup.'); }
+  ask('Replace all current data with this backup?').then(ok=>{ if(!ok) return;
+    const b=blank(); d.settings=Object.assign(b.settings,d.settings||{}); S=d; save(); render(); toast('Backup restored'); });
+}
 function demo(y){
-  if(S.years[y] && !confirm(`Replace ${y} with sample data?`)) return;
+  if(S.years[y]) return ask(`Replace ${y} with sample data?`).then(ok=>ok&&loadDemo(y));
+  loadDemo(y);
+}
+function loadDemo(y){
   const yr=newYear(); yr.annualS=1850000; yr.annualG=36500; S.years[y]=yr;
   const w=yr.mw.reduce((a,b)=>a+b,0); yr.months=yr.mw.map(x=>({s:Math.round(yr.annualS*x/w),g:Math.round(yr.annualG*x/w)})); fixRound(yr);
   save();
