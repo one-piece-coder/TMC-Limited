@@ -1,0 +1,32 @@
+{
+  "name": "fixit-home",
+  "version": "0.1.0",
+  "description": "DIY home repair app: identify appliances, get repair suggestions, and watch video tutorials.",
+  "main": "server/index.js",
+  "directories": {
+    "test": "test"
+  },
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js",
+    "test": "node --test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/one-piece-coder/TMC-Limited.git"
+  },
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/one-piece-coder/TMC-Limited/issues"
+  },
+  "homepage": "https://github.com/one-piece-coder/TMC-Limited#readme",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  },
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  }
+}

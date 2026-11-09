@@ -1,0 +1,10 @@
+{
+  "name": "FixIt Home",
+  "short_name": "FixIt",
+  "description": "Identify appliances, find DIY repairs, and watch video tutorials.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fffaf5",
+  "theme_color": "#e8590c",
+  "icons": []
+}

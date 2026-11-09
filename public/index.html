@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="description" content="Identify your home appliances, find DIY repairs, and watch step-by-step video tutorials." />
+    <meta name="theme-color" content="#e8590c" />
+    <title>FixIt Home</title>
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <a href="#/" class="brand"><span class="brand-mark">🔧</span> FixIt Home</a>
+      <nav class="nav">
+        <a href="#/identify" data-nav="identify">Identify</a>
+        <a href="#/browse" data-nav="browse">Repairs</a>
+        <a href="#/saved" data-nav="saved">My Projects</a>
+      </nav>
+    </header>
+    <main id="view" tabindex="-1"></main>
+    <footer class="footer">
+      <p>
+        FixIt Home provides general DIY guidance. Always follow your appliance's manual, turn off power, water and gas
+        before working, and call a licensed professional when in doubt.
+      </p>
+    </footer>
+    <script type="module" src="/app.js"></script>
+  </body>
+</html>
