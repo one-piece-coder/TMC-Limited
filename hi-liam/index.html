@@ -541,9 +541,8 @@
         played = true;
         playTune();
       }
-      setTimeout(thenTune, 4000); // backup in case the voice never says it's done
-      // Say the color too, with a little pause: "Hi, Liam! ... Yellow!"
-      speak(kind, thenTune, "... " + colors[lastColor].name + "!");
+      setTimeout(thenTune, 2500); // backup in case the voice never says it's done
+      speak(kind, thenTune);
     } catch (e) {
       note.hidden = false;
       playTune();
