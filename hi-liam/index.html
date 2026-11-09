@@ -54,6 +54,29 @@
   }
   #note { font-family: system-ui, sans-serif; font-size: 0.9rem; opacity: 0.75; margin: 0; }
 
+  /* The small "Pick voices" menu for grown-ups */
+  .voices {
+    font-family: system-ui, sans-serif;
+    font-size: 0.95rem;
+    width: 100%;
+    max-width: 26rem;
+    margin-top: 1rem;
+  }
+  .voices summary { cursor: pointer; text-align: center; opacity: 0.8; padding: 0.4rem; }
+  .voice-row {
+    display: grid;
+    grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0.5rem;
+    margin-top: 0.6rem;
+  }
+  .voice-row select { font: inherit; padding: 0.35rem; min-width: 0; width: 100%; }
+  .voices button.test {
+    font-family: inherit;
+    font-size: 0.9rem;
+    padding: 0.35rem 0.9rem;
+  }
+
   /* The greeting sits between two waving hands */
   .greeting {
     display: flex;
@@ -100,6 +123,20 @@
   <span class="hand right" aria-hidden="true">👋</span>
 </div>
 <p id="note" hidden>Your browser can't speak, but here's the greeting anyway.</p>
+
+<details class="voices">
+  <summary>Pick voices</summary>
+  <div class="voice-row">
+    <label for="man-voice">Man's voice</label>
+    <select id="man-voice"><option value="">Automatic</option></select>
+    <button type="button" class="test" id="test-man">Test</button>
+  </div>
+  <div class="voice-row">
+    <label for="lady-voice">Lady's voice</label>
+    <select id="lady-voice"><option value="">Automatic</option></select>
+    <button type="button" class="test" id="test-lady">Test</button>
+  </div>
+</details>
 
 <script>
   const button = document.getElementById("greet-button");
@@ -220,24 +257,51 @@
     });
   }
 
-  // ---- Pick a natural-sounding voice, switching man / lady each time ----
+  // ---- Pick a voice, switching man / lady each time ----
   // Browsers don't say whether a voice is a man or a lady, so we match on
   // the names of common voices on iPhone, Mac, Windows, Android and Chrome.
   const LADY_NAMES = /samantha|ava|allison|susan|zoe|karen|moira|tessa|fiona|victoria|serena|kate|nicky|siri.*(female|voice [24])|aria|jenny|zira|hazel|libby|sonia|michelle|emma|ana|natasha|female|google us english/i;
-  const MAN_NAMES = /alex|daniel|tom|aaron|arthur|oliver|rishi|gordon|lee|evan|nathan|reed|siri.*(male|voice [13])|david|guy|mark|george|ryan|christopher|eric|andrew|brian|davis|william|male/i;
+  const MAN_NAMES = /alex|daniel|fred|tom|aaron|arthur|oliver|rishi|gordon|lee|evan|nathan|reed|siri.*(male|voice [13])|david|guy|mark|george|ryan|christopher|eric|andrew|brian|davis|william|male/i;
   // Higher-quality voices usually have one of these words in their name
-  // Voices that sound robotic, so we never pick them
-  const ROBOT_VOICES = /compact|espeak|novelty|whisper|bad news|good news|bells|boing|bubbles|cellos|deranged|hysterical|jester|organ|superstar|trinoids|wobble|zarvox|albert|fred|junior|ralph|kathy|princess|bahh/i;
+  const GOOD_WORDS = /natural|neural|online|premium|enhanced|siri|google/i;
 
+  const manSelect = document.getElementById("man-voice");
+  const ladySelect = document.getElementById("lady-voice");
   let voices = [];
   let nextIsMan = true;
 
+  // Remember the voices you picked (only on this device)
+  function savedVoice(key) {
+    try { return localStorage.getItem(key) || ""; } catch (e) { return ""; }
+  }
+  function saveVoice(key, name) {
+    try { localStorage.setItem(key, name); } catch (e) {}
+  }
+
+  function fillMenu(select, key) {
+    const keep = select.value || savedVoice(key);
+    select.innerHTML = "";
+    const auto = document.createElement("option");
+    auto.value = "";
+    auto.textContent = "Automatic";
+    select.appendChild(auto);
+    voices.forEach(function (v) {
+      const option = document.createElement("option");
+      option.value = v.name;
+      option.textContent = v.name + " (" + v.lang + ")";
+      select.appendChild(option);
+    });
+    select.value = voices.some(function (v) { return v.name === keep; }) ? keep : "";
+  }
+
   function loadVoices() {
     try {
-      voices = window.speechSynthesis.getVoices().filter(function (v) {
-        return /^en/i.test(v.lang);
-      });
+      const all = window.speechSynthesis.getVoices();
+      const english = all.filter(function (v) { return /^en/i.test(v.lang); });
+      voices = english.length ? english : all;
     } catch (e) { voices = []; }
+    fillMenu(manSelect, "hiLiam.manVoice");
+    fillMenu(ladySelect, "hiLiam.ladyVoice");
   }
   if ("speechSynthesis" in window) {
     loadVoices();
@@ -245,33 +309,60 @@
   }
 
   function score(v) {
-    // The most human-sounding kinds of voices get the most points
     let s = 0;
-    if (/premium/i.test(v.name)) s += 40;            // Apple's best voices
-    if (/enhanced/i.test(v.name)) s += 30;           // Apple's better voices
-    if (/natural|neural/i.test(v.name)) s += 35;     // Microsoft Edge's AI voices
-    if (/siri/i.test(v.name)) s += 25;
-    if (/online/i.test(v.name)) s += 10;
-    if (/google/i.test(v.name)) s += 15;             // Chrome's internet voices
+    if (GOOD_WORDS.test(v.name)) s += 10;
     if (/en[-_]US/i.test(v.lang)) s += 2;
-    if (ROBOT_VOICES.test(v.name)) s -= 100;
+    if (v.localService) s += 1; // works without internet
+    if (/compact|novelty|whisper|bad news|bells|zarvox|trinoids|albert|jester|organ|bubbles|cellos/i.test(v.name)) s -= 50;
     return s;
   }
 
-  function bestVoice(wantMan) {
+  function autoVoice(wantMan) {
     const pattern = wantMan ? MAN_NAMES : LADY_NAMES;
-    const other = wantMan ? LADY_NAMES : MAN_NAMES;
     const matches = voices.filter(function (v) {
-      // "female" contains "male", so check the other list too
-      return pattern.test(v.name) && !ROBOT_VOICES.test(v.name) &&
-        !(wantMan && other.test(v.name) && /female/i.test(v.name));
+      // "female" contains "male", so a man's voice can't say "female"
+      return pattern.test(v.name) && !(wantMan && /female/i.test(v.name));
     });
     matches.sort(function (a, b) { return score(b) - score(a); });
-    if (matches[0]) return matches[0];
-    // No man/lady match: use the most human-sounding voice there is
-    const any = voices.slice().sort(function (a, b) { return score(b) - score(a); })[0];
-    return any && score(any) > 0 ? { voice: any, guessed: true } : null;
+    return matches[0] || null;
   }
+
+  // Use the voice picked in the menu, or choose one automatically
+  function voiceFor(wantMan) {
+    const picked = (wantMan ? manSelect : ladySelect).value;
+    const found = voices.find(function (v) { return v.name === picked; });
+    return found || autoVoice(wantMan);
+  }
+
+  function speak(wantMan, whenDone) {
+    window.speechSynthesis.cancel(); // stop the last one if you push fast
+    const words = new SpeechSynthesisUtterance("Hi, Liam!");
+    if (!voices.length) loadVoices();
+    const voice = voiceFor(wantMan);
+    words.rate = 0.95; // a touch slower sounds more natural
+    if (voice) {
+      words.voice = voice;
+      words.lang = voice.lang;
+      words.pitch = 1; // real voices sound best unchanged
+    } else {
+      // No man/lady voice found: fake it by making the voice lower or higher
+      words.pitch = wantMan ? 0.7 : 1.4;
+    }
+    if (whenDone) {
+      words.onend = whenDone;
+      words.onerror = whenDone;
+    }
+    window.speechSynthesis.speak(words);
+  }
+
+  manSelect.addEventListener("change", function () { saveVoice("hiLiam.manVoice", manSelect.value); });
+  ladySelect.addEventListener("change", function () { saveVoice("hiLiam.ladyVoice", ladySelect.value); });
+  document.getElementById("test-man").addEventListener("click", function () {
+    if ("speechSynthesis" in window) speak(true);
+  });
+  document.getElementById("test-lady").addEventListener("click", function () {
+    if ("speechSynthesis" in window) speak(false);
+  });
 
   // ---- Say "Hi Liam!", then play the tune when the voice is done ----
   function sayHi() {
@@ -282,35 +373,16 @@
       return;
     }
     try {
-      window.speechSynthesis.cancel(); // stop the last one if you push fast
-      const words = new SpeechSynthesisUtterance("Hi, Liam!");
-      if (!voices.length) loadVoices();
       const wantMan = nextIsMan;
       nextIsMan = !nextIsMan; // switch for next time
-      let voice = bestVoice(wantMan);
-      let guessed = false;
-      if (voice && voice.guessed) { guessed = true; voice = voice.voice; }
-      words.rate = 0.92; // a little slower, like a friendly hello
-      words.pitch = 1;   // real voices sound most human unchanged
-      if (voice) {
-        words.voice = voice;
-        words.lang = voice.lang;
-      }
-      if (!voice || guessed) {
-        // Couldn't find a man/lady voice: nudge the pitch a little (not too much,
-        // big changes sound like a robot)
-        words.pitch = wantMan ? 0.85 : 1.2;
-      }
       let played = false;
       function thenTune() {
         if (played) return;
         played = true;
         playTune();
       }
-      words.onend = thenTune;
-      words.onerror = thenTune;
       setTimeout(thenTune, 2500); // backup in case the voice never says it's done
-      window.speechSynthesis.speak(words);
+      speak(wantMan, thenTune);
     } catch (e) {
       note.hidden = false;
       playTune();
