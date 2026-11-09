@@ -65,11 +65,12 @@
   .voices summary { cursor: pointer; text-align: center; opacity: 0.8; padding: 0.4rem; }
   .voice-row {
     display: grid;
-    grid-template-columns: 6.5rem minmax(0, 1fr) auto;
+    grid-template-columns: 7.5rem minmax(0, 1fr) auto;
     align-items: center;
     gap: 0.5rem;
     margin-top: 0.6rem;
   }
+  .voice-toggle { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin-top: 0.8rem; cursor: pointer; }
   .voice-row select { font: inherit; padding: 0.35rem; min-width: 0; width: 100%; }
   .voices button.test {
     font-family: inherit;
@@ -136,6 +137,17 @@
     <select id="lady-voice"><option value="">Automatic</option></select>
     <button type="button" class="test" id="test-lady">Test</button>
   </div>
+  <div class="voice-row">
+    <label for="cartoon-voice">Cartoon voice</label>
+    <select id="cartoon-voice"><option value="">Automatic</option></select>
+    <button type="button" class="test" id="test-cartoon">Test</button>
+  </div>
+  <div class="voice-row">
+    <label for="kid-voice">Bouncy kid voice</label>
+    <select id="kid-voice"><option value="">Automatic</option></select>
+    <button type="button" class="test" id="test-kid">Test</button>
+  </div>
+  <label class="voice-toggle"><input type="checkbox" id="use-cartoon" checked> Take turns with the fun voices too</label>
 </details>
 
 <script>
@@ -267,8 +279,11 @@
 
   const manSelect = document.getElementById("man-voice");
   const ladySelect = document.getElementById("lady-voice");
+  const cartoonSelect = document.getElementById("cartoon-voice");
+  const kidSelect = document.getElementById("kid-voice");
+  const useCartoon = document.getElementById("use-cartoon");
   let voices = [];
-  let nextIsMan = true;
+  let turn = 0; // which voice is next: man, lady, cartoon, then bouncy kid
 
   // Remember the voices you picked (only on this device)
   function savedVoice(key) {
@@ -302,6 +317,8 @@
     } catch (e) { voices = []; }
     fillMenu(manSelect, "hiLiam.manVoice");
     fillMenu(ladySelect, "hiLiam.ladyVoice");
+    fillMenu(cartoonSelect, "hiLiam.cartoonVoice");
+    fillMenu(kidSelect, "hiLiam.kidVoice");
   }
   if ("speechSynthesis" in window) {
     loadVoices();
@@ -327,26 +344,41 @@
     return matches[0] || null;
   }
 
-  // Use the voice picked in the menu, or choose one automatically
-  function voiceFor(wantMan) {
-    const picked = (wantMan ? manSelect : ladySelect).value;
-    const found = voices.find(function (v) { return v.name === picked; });
-    return found || autoVoice(wantMan);
+  // Use the voice picked in the menu, or choose one automatically.
+  // kind is "man", "lady", "cartoon" or "kid".
+  function voiceFor(kind) {
+    const selects = { man: manSelect, lady: ladySelect, cartoon: cartoonSelect, kid: kidSelect };
+    const select = selects[kind];
+    const found = voices.find(function (v) { return v.name === select.value; });
+    // The cartoon voice starts from a lady's voice, which squeaks up best
+    return found || autoVoice(kind === "man") || voices[0] || null;
   }
 
-  function speak(wantMan, whenDone) {
+  function speak(kind, whenDone) {
     window.speechSynthesis.cancel(); // stop the last one if you push fast
-    const words = new SpeechSynthesisUtterance("Hi, Liam!");
     if (!voices.length) loadVoices();
-    const voice = voiceFor(wantMan);
-    words.rate = 0.95; // a touch slower sounds more natural
+    const voice = voiceFor(kind);
+    let words;
+    if (kind === "cartoon") {
+      // Our own squeaky cartoon voice: as high as it goes, quick and bouncy,
+      // with a stretched-out "Hiii" and an excited "Liam!"
+      words = new SpeechSynthesisUtterance("Hiii, Liam!");
+      words.pitch = 2;   // the highest pitch browsers allow
+      words.rate = 1.15; // a little quick, like an excited cartoon
+    } else if (kind === "kid") {
+      // Our own bouncy kid voice: high, fast and super excited
+      words = new SpeechSynthesisUtterance("Hi hi, Liam!");
+      words.pitch = 1.6;
+      words.rate = 1.3;
+    } else {
+      words = new SpeechSynthesisUtterance("Hi, Liam!");
+      words.rate = 0.95; // a touch slower sounds more natural
+      // Real voices sound best unchanged. With no man/lady voice, fake it.
+      words.pitch = voice && voice.name ? 1 : (kind === "man" ? 0.7 : 1.4);
+    }
     if (voice) {
       words.voice = voice;
       words.lang = voice.lang;
-      words.pitch = 1; // real voices sound best unchanged
-    } else {
-      // No man/lady voice found: fake it by making the voice lower or higher
-      words.pitch = wantMan ? 0.7 : 1.4;
     }
     if (whenDone) {
       words.onend = whenDone;
@@ -357,11 +389,23 @@
 
   manSelect.addEventListener("change", function () { saveVoice("hiLiam.manVoice", manSelect.value); });
   ladySelect.addEventListener("change", function () { saveVoice("hiLiam.ladyVoice", ladySelect.value); });
+  cartoonSelect.addEventListener("change", function () { saveVoice("hiLiam.cartoonVoice", cartoonSelect.value); });
+  kidSelect.addEventListener("change", function () { saveVoice("hiLiam.kidVoice", kidSelect.value); });
+  try { useCartoon.checked = localStorage.getItem("hiLiam.useCartoon") !== "no"; } catch (e) {}
+  useCartoon.addEventListener("change", function () {
+    try { localStorage.setItem("hiLiam.useCartoon", useCartoon.checked ? "yes" : "no"); } catch (e) {}
+  });
   document.getElementById("test-man").addEventListener("click", function () {
-    if ("speechSynthesis" in window) speak(true);
+    if ("speechSynthesis" in window) speak("man");
   });
   document.getElementById("test-lady").addEventListener("click", function () {
-    if ("speechSynthesis" in window) speak(false);
+    if ("speechSynthesis" in window) speak("lady");
+  });
+  document.getElementById("test-cartoon").addEventListener("click", function () {
+    if ("speechSynthesis" in window) speak("cartoon");
+  });
+  document.getElementById("test-kid").addEventListener("click", function () {
+    if ("speechSynthesis" in window) speak("kid");
   });
 
   // ---- Say "Hi Liam!", then play the tune when the voice is done ----
@@ -373,8 +417,10 @@
       return;
     }
     try {
-      const wantMan = nextIsMan;
-      nextIsMan = !nextIsMan; // switch for next time
+      // Take turns: man, lady, cartoon, kid (or just man and lady if fun voices are off)
+      const order = useCartoon.checked ? ["man", "lady", "cartoon", "kid"] : ["man", "lady"];
+      const kind = order[turn % order.length];
+      turn++;
       let played = false;
       function thenTune() {
         if (played) return;
@@ -382,7 +428,7 @@
         playTune();
       }
       setTimeout(thenTune, 2500); // backup in case the voice never says it's done
-      speak(wantMan, thenTune);
+      speak(kind, thenTune);
     } catch (e) {
       note.hidden = false;
       playTune();
