@@ -166,7 +166,7 @@
 
   <div class="extra">
     <p class="extra-title">More voices on this phone</p>
-    <p class="extra-hint">Tick any voice to add it to the turns. Voices you download show up here. If a new one is missing, close and reopen this page.</p>
+    <p class="extra-hint">Tick voices and only those will talk. Voices you download show up here. If a new one is missing, close and reopen this page.</p>
     <label class="voice-toggle"><input type="checkbox" id="show-all-langs"> Show other languages too</label>
     <p class="extra-count" id="extra-count"></p>
     <ul class="extra-list" id="extra-list"></ul>
@@ -367,8 +367,8 @@
 
   function updateCount() {
     const n = extraVoices().length;
-    extraCount.textContent = n === 0 ? "No extra voices ticked yet."
-      : n === 1 ? "1 extra voice is taking turns." : n + " extra voices are taking turns.";
+    extraCount.textContent = n === 0 ? "No voices ticked, so the voices above take turns."
+      : n === 1 ? "Only your 1 ticked voice is talking." : "Only your " + n + " ticked voices are taking turns.";
   }
 
   function fillExtraList() {
@@ -506,9 +506,11 @@
     }
     try {
       // Take turns: man, lady, cartoon, kid (or just man and lady if fun voices are off)
-      const order = useCartoon.checked ? ["man", "lady", "cartoon", "kid"] : ["man", "lady"];
-      // Then every extra voice you ticked
-      extraVoices().forEach(function (v) { order.push({ voice: v }); });
+      // If any voices are ticked, use only those. If none are ticked, use the
+      // built-in turns so the button still talks.
+      const ticked = extraVoices().map(function (v) { return { voice: v }; });
+      const order = ticked.length ? ticked
+        : useCartoon.checked ? ["man", "lady", "cartoon", "kid"] : ["man", "lady"];
       const kind = order[turn % order.length];
       turn++;
       let played = false;
