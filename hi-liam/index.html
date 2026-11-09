@@ -53,13 +53,52 @@
     text-align: center;
   }
   #note { font-family: system-ui, sans-serif; font-size: 0.9rem; opacity: 0.75; margin: 0; }
-  @media (prefers-reduced-motion: reduce) { body, button { transition: none; } }
+
+  /* The greeting sits between two waving hands */
+  .greeting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: clamp(0.5rem, 3vw, 1.5rem);
+    max-width: 100%;
+  }
+  .greeting #message { min-width: 0; padding-inline: 0.2em; } /* room for slanted fonts */
+  .hand {
+    font-size: clamp(2.5rem, 12vw, 5rem);
+    line-height: 1;
+    display: inline-block;
+    font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+    transform-origin: 70% 90%; /* wave from the wrist */
+    visibility: hidden; /* hands show up on the first push */
+  }
+  .hand.left { transform: scaleX(-1); } /* mirror so both hands face Liam */
+  .hand.show { visibility: visible; }
+  .hand.right.waving { animation: wave-right 1.4s ease-in-out; }
+  .hand.left.waving { animation: wave-left 1.4s ease-in-out; }
+  @keyframes wave-right {
+    0%, 100% { transform: rotate(0deg); }
+    15%, 45%, 75% { transform: rotate(18deg); }
+    30%, 60%, 90% { transform: rotate(-12deg); }
+  }
+  @keyframes wave-left {
+    0%, 100% { transform: scaleX(-1) rotate(0deg); }
+    15%, 45%, 75% { transform: scaleX(-1) rotate(18deg); }
+    30%, 60%, 90% { transform: scaleX(-1) rotate(-12deg); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    body, button { transition: none; }
+    .hand.waving { animation-duration: 0.01s; }
+  }
 </style>
 </head>
 <body>
 
 <button id="greet-button" type="button">Push me</button>
-<p id="message" aria-live="polite"></p>
+<div class="greeting">
+  <span class="hand left" aria-hidden="true">👋</span>
+  <p id="message" aria-live="polite"></p>
+  <span class="hand right" aria-hidden="true">👋</span>
+</div>
 <p id="note" hidden>Your browser can't speak, but here's the greeting anyway.</p>
 
 <script>
@@ -185,9 +224,10 @@
   // Browsers don't say whether a voice is a man or a lady, so we match on
   // the names of common voices on iPhone, Mac, Windows, Android and Chrome.
   const LADY_NAMES = /samantha|ava|allison|susan|zoe|karen|moira|tessa|fiona|victoria|serena|kate|nicky|siri.*(female|voice [24])|aria|jenny|zira|hazel|libby|sonia|michelle|emma|ana|natasha|female|google us english/i;
-  const MAN_NAMES = /alex|daniel|fred|tom|aaron|arthur|oliver|rishi|gordon|lee|evan|nathan|reed|siri.*(male|voice [13])|david|guy|mark|george|ryan|christopher|eric|andrew|brian|davis|william|male/i;
+  const MAN_NAMES = /alex|daniel|tom|aaron|arthur|oliver|rishi|gordon|lee|evan|nathan|reed|siri.*(male|voice [13])|david|guy|mark|george|ryan|christopher|eric|andrew|brian|davis|william|male/i;
   // Higher-quality voices usually have one of these words in their name
-  const GOOD_WORDS = /natural|neural|online|premium|enhanced|siri|google/i;
+  // Voices that sound robotic, so we never pick them
+  const ROBOT_VOICES = /compact|espeak|novelty|whisper|bad news|good news|bells|boing|bubbles|cellos|deranged|hysterical|jester|organ|superstar|trinoids|wobble|zarvox|albert|fred|junior|ralph|kathy|princess|bahh/i;
 
   let voices = [];
   let nextIsMan = true;
@@ -205,11 +245,16 @@
   }
 
   function score(v) {
+    // The most human-sounding kinds of voices get the most points
     let s = 0;
-    if (GOOD_WORDS.test(v.name)) s += 10;
+    if (/premium/i.test(v.name)) s += 40;            // Apple's best voices
+    if (/enhanced/i.test(v.name)) s += 30;           // Apple's better voices
+    if (/natural|neural/i.test(v.name)) s += 35;     // Microsoft Edge's AI voices
+    if (/siri/i.test(v.name)) s += 25;
+    if (/online/i.test(v.name)) s += 10;
+    if (/google/i.test(v.name)) s += 15;             // Chrome's internet voices
     if (/en[-_]US/i.test(v.lang)) s += 2;
-    if (v.localService) s += 1; // works without internet
-    if (/compact|novelty|whisper|bad news|bells|zarvox|trinoids|albert|jester|organ|bubbles|cellos/i.test(v.name)) s -= 50;
+    if (ROBOT_VOICES.test(v.name)) s -= 100;
     return s;
   }
 
@@ -218,10 +263,14 @@
     const other = wantMan ? LADY_NAMES : MAN_NAMES;
     const matches = voices.filter(function (v) {
       // "female" contains "male", so check the other list too
-      return pattern.test(v.name) && !(wantMan && other.test(v.name) && /female/i.test(v.name));
+      return pattern.test(v.name) && !ROBOT_VOICES.test(v.name) &&
+        !(wantMan && other.test(v.name) && /female/i.test(v.name));
     });
     matches.sort(function (a, b) { return score(b) - score(a); });
-    return matches[0] || null;
+    if (matches[0]) return matches[0];
+    // No man/lady match: use the most human-sounding voice there is
+    const any = voices.slice().sort(function (a, b) { return score(b) - score(a); })[0];
+    return any && score(any) > 0 ? { voice: any, guessed: true } : null;
   }
 
   // ---- Say "Hi Liam!", then play the tune when the voice is done ----
@@ -238,15 +287,19 @@
       if (!voices.length) loadVoices();
       const wantMan = nextIsMan;
       nextIsMan = !nextIsMan; // switch for next time
-      const voice = bestVoice(wantMan);
-      words.rate = 0.95; // a touch slower sounds more natural
+      let voice = bestVoice(wantMan);
+      let guessed = false;
+      if (voice && voice.guessed) { guessed = true; voice = voice.voice; }
+      words.rate = 0.92; // a little slower, like a friendly hello
+      words.pitch = 1;   // real voices sound most human unchanged
       if (voice) {
         words.voice = voice;
         words.lang = voice.lang;
-        words.pitch = 1; // real voices sound best unchanged
-      } else {
-        // No man/lady voice found: fake it by making the voice lower or higher
-        words.pitch = wantMan ? 0.7 : 1.4;
+      }
+      if (!voice || guessed) {
+        // Couldn't find a man/lady voice: nudge the pitch a little (not too much,
+        // big changes sound like a robot)
+        words.pitch = wantMan ? 0.85 : 1.2;
       }
       let played = false;
       function thenTune() {
@@ -272,6 +325,14 @@
     } catch (e) {}
 
     message.textContent = "Hi Liam!";
+
+    // Wave both hands (remove the wave and add it back so it replays every push)
+    document.querySelectorAll(".hand").forEach(function (hand) {
+      hand.classList.add("show");
+      hand.classList.remove("waving");
+      void hand.offsetWidth; // makes the browser notice the wave was removed
+      hand.classList.add("waving");
+    });
 
     lastColor = pickNew(colors.length, lastColor);
     root.style.setProperty("--bg", colors[lastColor].bg);

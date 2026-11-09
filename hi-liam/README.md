@@ -17,4 +17,5 @@ Open `index.html` in a web browser. You don't need to install anything. Turn you
 - `playTune()` uses the Web Audio API to play the notes in `TUNE`, one "boop" at a time. You can change the notes to write your own song.
 - `colors` is a list of background and text color pairs that are easy to read together.
 - `fonts` is a list of Google Fonts.
+- Two 👋 hands wave on each push. The wave is a CSS animation (`@keyframes wave-left` and `wave-right`).
 - `pickNew()` picks a random color pair and font, and never the same one twice in a row.
