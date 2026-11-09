@@ -1,0 +1,583 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Paint Store Goals</title>
+<style>
+:root{
+  --bg:#f5f6f8; --panel:#ffffff; --ink:#1b2330; --muted:#5f6b7a; --line:#dfe3e9; --soft:#eef1f5;
+  --accent:#2563eb; --accent-soft:#dbe6fd; --budget:#9aa6b8; --fcst:#93b4f5;
+  --good:#15803d; --good-soft:#dcf3e3; --bad:#b91c1c; --bad-soft:#fbe1e1; --warn:#a16207;
+  --input:#ffffff; --override:#fff6d6;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#11151b; --panel:#1a2029; --ink:#e6eaf0; --muted:#97a3b3; --line:#2c3542; --soft:#222a35;
+    --accent:#6b9bff; --accent-soft:#22325a; --budget:#6c7889; --fcst:#3d5c9e;
+    --good:#4ade80; --good-soft:#173525; --bad:#f87171; --bad-soft:#3d1c1c; --warn:#facc15;
+    --input:#131921; --override:#3a3215;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#11151b; --panel:#1a2029; --ink:#e6eaf0; --muted:#97a3b3; --line:#2c3542; --soft:#222a35;
+  --accent:#6b9bff; --accent-soft:#22325a; --budget:#6c7889; --fcst:#3d5c9e;
+  --good:#4ade80; --good-soft:#173525; --bad:#f87171; --bad-soft:#3d1c1c; --warn:#facc15;
+  --input:#131921; --override:#3a3215;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:14px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+header{background:var(--panel);border-bottom:1px solid var(--line);padding:12px 16px;display:flex;flex-wrap:wrap;gap:12px;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:5}
+h1{font-size:18px;margin:0}
+h2{font-size:16px;margin:0 0 10px}
+h3{font-size:14px;margin:0 0 6px}
+.sub{color:var(--muted);font-size:12px}
+.ctrls{display:flex;flex-wrap:wrap;gap:10px;align-items:center}
+label.f{display:flex;flex-direction:column;font-size:12px;color:var(--muted);gap:3px}
+input,select,button{font:inherit;color:var(--ink)}
+input,select{background:var(--input);border:1px solid var(--line);border-radius:6px;padding:6px 8px;min-width:0}
+input:focus,select:focus{outline:2px solid var(--accent);outline-offset:-1px}
+input.num{text-align:right;width:110px}
+input.num.sm{width:70px}
+input.ov{background:var(--override)}
+button{background:var(--soft);border:1px solid var(--line);border-radius:6px;padding:7px 12px;cursor:pointer}
+button:hover{border-color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.danger{color:var(--bad)}
+nav{display:flex;gap:4px;padding:0 16px;background:var(--panel);border-bottom:1px solid var(--line);overflow-x:auto}
+nav button{background:none;border:none;border-bottom:3px solid transparent;border-radius:0;padding:10px 12px;white-space:nowrap;color:var(--muted)}
+nav button.on{color:var(--ink);border-bottom-color:var(--accent);font-weight:600}
+main{max-width:1200px;margin:0 auto;padding:16px}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(340px,1fr));gap:14px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+.card .hd{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px}
+.card .hd b{font-size:15px}
+.metrics{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+.metric .big{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.metric .of{color:var(--muted);font-size:12px}
+.bar{position:relative;height:8px;background:var(--soft);border-radius:4px;margin:6px 0 8px;overflow:visible}
+.bar i{position:absolute;left:0;top:0;bottom:0;background:var(--accent);border-radius:4px;max-width:100%}
+.bar u{position:absolute;top:-3px;bottom:-3px;width:2px;background:var(--ink);opacity:.55}
+.kv{display:flex;justify-content:space-between;font-size:12px;gap:8px;font-variant-numeric:tabular-nums}
+.kv span:first-child{color:var(--muted)}
+.pos{color:var(--good)} .neg{color:var(--bad)}
+.pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:11px;font-weight:600}
+.pill.pos{background:var(--good-soft)} .pill.neg{background:var(--bad-soft)}
+.tbl-wrap{overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-variant-numeric:tabular-nums}
+th,td{padding:5px 8px;border-bottom:1px solid var(--line);text-align:right;white-space:nowrap}
+th{font-size:12px;color:var(--muted);font-weight:600;background:var(--soft);position:sticky;top:0}
+td:first-child,th:first-child,td.l,th.l{text-align:left}
+tr.sum td{font-weight:650;background:var(--soft)}
+tr.today td{box-shadow:inset 3px 0 0 var(--accent)}
+tr.closed td{color:var(--muted)}
+td input.num{width:100px;padding:4px 6px}
+.row{display:flex;flex-wrap:wrap;gap:10px;align-items:flex-end}
+.note{font-size:12px;color:var(--muted);margin:6px 0 0}
+.warn{color:var(--warn);font-size:12px}
+.legend{display:flex;gap:14px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin:6px 0}
+.legend i{display:inline-block;width:12px;height:12px;border-radius:2px;vertical-align:-2px;margin-right:5px}
+svg text{fill:var(--muted);font-size:11px}
+.hidden{display:none}
+.toast{position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--bg);padding:8px 14px;border-radius:8px;opacity:0;transition:opacity .2s;pointer-events:none}
+.toast.show{opacity:1}
+@media (max-width:600px){
+  main{padding:12px}
+  .grid{grid-template-columns:1fr}
+  .metrics{grid-template-columns:1fr}
+  input.num{width:96px}
+}
+</style>
+</head>
+<body>
+<header>
+  <div>
+    <h1 id="title">Paint Store Goal Tracker</h1>
+    <div class="sub">Sales &amp; gallons — budget vs. actual vs. forecast</div>
+  </div>
+  <div class="ctrls">
+    <label class="f">Year<select id="yearSel"></select></label>
+    <label class="f">As of<input type="date" id="asOf"></label>
+    <button id="todayBtn" title="Set as-of date to today">Today</button>
+    <button id="lastBtn" title="Set as-of date to the last day with actuals entered">Last entered</button>
+  </div>
+</header>
+<nav id="tabs">
+  <button data-tab="dash" class="on">Dashboard</button>
+  <button data-tab="daily">Daily Actuals</button>
+  <button data-tab="budget">Budgets</button>
+  <button data-tab="fcst">Forecast</button>
+  <button data-tab="settings">Settings &amp; Data</button>
+</nav>
+<main>
+  <section id="tab-dash"></section>
+  <section id="tab-daily" class="hidden"></section>
+  <section id="tab-budget" class="hidden"></section>
+  <section id="tab-fcst" class="hidden"></section>
+  <section id="tab-settings" class="hidden"></section>
+</main>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ================= Constants & date helpers ================= */
+const KEY = 'paintGoalTracker.v1';
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS_L = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const DOW = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const DEF_MW = [5.5,6,8,9.5,10.5,10.5,10,9.5,9,8.5,7,6]; // seasonal paint curve, sums to 100
+const DEF_DW = [0.6,1,1,1,1,1.1,1.2];                     // Sun..Sat selling-day weights
+const METHODS = {
+  paceYTD:   'Pace — year-to-date % of budget applied to what is left',
+  pacePeriod:'Pace — this period\'s % of budget applied to what is left',
+  runRate:   'Run rate — average per selling day × selling days left',
+  budget:    'On budget — remaining budget as planned'
+};
+
+const pad = n => String(n).padStart(2,'0');
+function ds(y,m,d){ const t=new Date(y,m,d); return t.getFullYear()+'-'+pad(t.getMonth()+1)+'-'+pad(t.getDate()); }
+function pd(s){ const [y,m,d]=s.split('-').map(Number); return {y, m:m-1, d}; }
+function addDays(s,n){ const p=pd(s); return ds(p.y,p.m,p.d+n); }
+function dim(y,m){ return new Date(y,m+1,0).getDate(); }
+function dowOf(s){ const p=pd(s); return new Date(p.y,p.m,p.d).getDay(); }
+function todayStr(){ const t=new Date(); return ds(t.getFullYear(),t.getMonth(),t.getDate()); }
+function fmtDate(s,opt){ const p=pd(s); return new Date(p.y,p.m,p.d).toLocaleDateString(undefined,opt||{month:'short',day:'numeric'}); }
+
+/* ================= State ================= */
+function blank(){ return { settings:{ storeName:'', weekStart:0, dow:DEF_DW.slice(), method:'paceYTD', adjS:0, adjG:0, growS:3, growG:2 }, years:{} }; }
+function newYear(){ return { annualS:0, annualG:0, mw:DEF_MW.slice(), months:Array.from({length:12},()=>({s:0,g:0})), ov:{}, act:{} }; }
+const EMPTY_YEAR = newYear();
+function load(){
+  try{
+    const r = JSON.parse(localStorage.getItem(KEY));
+    if(r && r.years){ const b=blank(); r.settings=Object.assign(b.settings, r.settings||{}); return r; }
+  }catch(e){}
+  return blank();
+}
+let S = load();
+let BM = {};                       // budget-map cache per year
+function save(){ BM={}; try{ localStorage.setItem(KEY, JSON.stringify(S)); }catch(e){} }
+function Yr(y){ return S.years[y] || EMPTY_YEAR; }          // read-only access
+function Yw(y){ return S.years[y] || (S.years[y]=newYear()); } // write access
+
+let UI = { tab:'dash', asOf:todayStr(), dailyMonth:new Date().getMonth(), fMetric:'s' };
+const curY = () => pd(UI.asOf).y;
+
+/* ================= Numbers ================= */
+function num(v){ if(v==null) return null; const s=String(v).replace(/[^0-9.\-]/g,''); if(s===''||s==='-'||s==='.') return null; const n=parseFloat(s); return isFinite(n)?n:null; }
+const money = n => n==null||!isFinite(n) ? '—' : (n<0?'-':'')+'$'+Math.round(Math.abs(n)).toLocaleString();
+const gals  = n => n==null||!isFinite(n) ? '—' : Math.round(n).toLocaleString();
+const fmtK  = (n,k) => k==='s' ? money(n) : gals(n)+' gal';
+const pct   = n => n==null||!isFinite(n) ? '—' : (n*100).toFixed(1)+'%';
+const inVal = (n,dec=0) => n==null ? '' : Number(n).toLocaleString(undefined,{maximumFractionDigits:dec});
+const signed = (n,k) => n==null||!isFinite(n) ? '—' : (n>=0?'+':'−')+fmtK(Math.abs(n),k).replace('-','');
+const cls = n => n==null ? '' : (n>=0?'pos':'neg');
+const esc = s => String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ================= Budget engine ================= */
+// Daily budget = month budget spread by day-of-week weights; days with an override keep it,
+// and the rest of the month absorbs the difference so the month total still matches.
+function bmap(y){
+  if(BM[y]) return BM[y];
+  const yr=Yr(y), dw=S.settings.dow, out={};
+  for(let m=0;m<12;m++){
+    const n=dim(y,m);
+    for(const k of ['s','g']){
+      let O=0, W=0;
+      for(let d=1; d<=n; d++){ const s=ds(y,m,d), ov=yr.ov[s]; if(ov && ov[k]!=null) O+=ov[k]; else W+=dw[dowOf(s)]; }
+      const rem=(yr.months[m][k]||0)-O;
+      for(let d=1; d<=n; d++){
+        const s=ds(y,m,d), ov=yr.ov[s];
+        out[s]=out[s]||{s:0,g:0};
+        out[s][k] = (ov && ov[k]!=null) ? ov[k] : (W>0 ? rem*dw[dowOf(s)]/W : 0);
+      }
+    }
+  }
+  return BM[y]=out;
+}
+const bud = (s,k) => bmap(pd(s).y)[s][k];
+function act(s,k){ const a=Yr(pd(s).y).act[s]; return a && a[k]!=null ? a[k] : null; }
+
+function stats(start,end,asOf,k){
+  const r={b:0,bTD:0,a:0,el:0,rem:0,bRem:0};
+  for(let s=start; s<=end; s=addDays(s,1)){
+    const bb=bud(s,k), aa=act(s,k);
+    r.b+=bb;
+    if(s<=asOf){ r.bTD+=bb; if(aa!=null) r.a+=aa; if(bb>0||aa) r.el++; }
+    else { r.bRem+=bb; if(bb>0) r.rem++; }
+  }
+  return r;
+}
+function yearCtx(y,asOf,k){
+  const st=stats(ds(y,0,1), ds(y,11,31), asOf, k);
+  return { fac: st.bTD>0 ? st.a/st.bTD : 1, rate: st.el>0 ? st.a/st.el : null };
+}
+function forecast(st,k,ctx){
+  const adj = 1 + (k==='s'?S.settings.adjS:S.settings.adjG)/100;
+  switch(S.settings.method){
+    case 'pacePeriod': { const f = st.bTD>0 ? st.a/st.bTD : ctx.fac; return st.a + st.bRem*f*adj; }
+    case 'runRate': { const r = st.el>0 ? st.a/st.el : ctx.rate; return r==null ? st.a+st.bRem*adj : st.a + r*st.rem*adj; }
+    case 'budget': return st.a + st.bRem*adj;
+    default: return st.a + st.bRem*ctx.fac*adj;
+  }
+}
+function monthRange(y,m){ return [ds(y,m,1), ds(y,m,dim(y,m))]; }
+function monthFc(y,m,asOf,k,ctx){ const [a,b]=monthRange(y,m); return forecast(stats(a,b,asOf,k),k,ctx); }
+
+function periods(asOf){
+  const p=pd(asOf), y=p.y, q=Math.floor(p.m/3);
+  const off=(dowOf(asOf)-S.settings.weekStart+7)%7, ws=addDays(asOf,-off);
+  return [
+    {id:'day',  name:'Today',  label:fmtDate(asOf,{weekday:'short',month:'short',day:'numeric'}), a:asOf, b:asOf},
+    {id:'week', name:'Week',   label:fmtDate(ws)+' – '+fmtDate(addDays(ws,6)), a:ws, b:addDays(ws,6)},
+    {id:'month',name:'Month',  label:MONTHS_L[p.m]+' '+y, a:ds(y,p.m,1), b:ds(y,p.m,dim(y,p.m)), months:[p.m]},
+    {id:'qtr',  name:'Quarter',label:'Q'+(q+1)+' '+y, a:ds(y,q*3,1), b:ds(y,q*3+2,dim(y,q*3+2)), months:[q*3,q*3+1,q*3+2]},
+    {id:'year', name:'Year',   label:String(y), a:ds(y,0,1), b:ds(y,11,31), months:[0,1,2,3,4,5,6,7,8,9,10,11]}
+  ];
+}
+function periodData(P,k){
+  const st=stats(P.a,P.b,UI.asOf,k), y=curY(), ctx=yearCtx(y,UI.asOf,k);
+  // Month/quarter/year forecasts are a sum of month forecasts so every view agrees.
+  st.fc = P.months ? P.months.reduce((t,m)=>t+monthFc(y,m,UI.asOf,k,ctx),0) : forecast(st,k,ctx);
+  return st;
+}
+
+/* ================= Rendering ================= */
+const $ = id => document.getElementById(id);
+function render(){
+  document.title = (S.settings.storeName ? S.settings.storeName+' — ' : '') + 'Paint Store Goals';
+  $('title').textContent = (S.settings.storeName || 'Paint Store') + ' Goal Tracker';
+  const y=curY(), ys=new Set([y-1,y,y+1, new Date().getFullYear(), ...Object.keys(S.years).map(Number)]);
+  $('yearSel').innerHTML=[...ys].sort().map(v=>`<option ${v===y?'selected':''}>${v}</option>`).join('');
+  $('asOf').value=UI.asOf;
+  document.querySelectorAll('#tabs button').forEach(b=>b.classList.toggle('on',b.dataset.tab===UI.tab));
+  for(const t of ['dash','daily','budget','fcst','settings']) $('tab-'+t).classList.toggle('hidden',t!==UI.tab);
+  ({dash:rDash,daily:rDaily,budget:rBudget,fcst:rFcst,settings:rSettings})[UI.tab]();
+}
+
+function metricBlock(st,k,P){
+  const title = k==='s'?'Sales':'Gallons';
+  const prog = st.b>0 ? Math.min(st.a/st.b,1.5) : 0, mark = st.b>0 ? st.bTD/st.b : 0;
+  const varTD = st.a-st.bTD, toGoal = st.b>0 ? st.a/st.b : null;
+  let rows = `<div class="kv"><span>Budget to date</span><span>${fmtK(st.bTD,k)}</span></div>
+    <div class="kv"><span>Vs. budget to date</span><span class="${cls(varTD)}">${signed(varTD,k)} ${st.bTD>0?`<span class="pill ${cls(varTD)}">${pct(st.a/st.bTD)}</span>`:''}</span></div>`;
+  if(P.id!=='day'){
+    const fv=st.fc-st.b, need = st.rem>0 ? Math.max(st.b-st.a,0)/st.rem : null;
+    rows += `<div class="kv"><span>Forecast at period end</span><span><b>${fmtK(st.fc,k)}</b></span></div>
+      <div class="kv"><span>Forecast vs. budget</span><span class="${cls(fv)}">${signed(fv,k)}</span></div>
+      <div class="kv"><span>Needed per selling day (${st.rem} left)</span><span>${need==null?'—':fmtK(need,k)}</span></div>`;
+  }
+  return `<div class="metric"><h3>${title}</h3>
+    <div class="big">${fmtK(st.a,k)}</div>
+    <div class="of">of ${fmtK(st.b,k)} budget · ${pct(toGoal)} to goal</div>
+    <div class="bar" title="Bar = actual; tick = where budget says you should be today"><i style="width:${(prog*100).toFixed(1)}%"></i><u style="left:${(mark*100).toFixed(1)}%"></u></div>
+    ${rows}</div>`;
+}
+
+function rDash(){
+  const a=UI.asOf, e=Yr(pd(a).y).act[a]||{};
+  const P=periods(a), y=curY();
+  const noAct = act(a,'s')==null && act(a,'g')==null;
+  const noBud = Yr(y).months.every(m=>!m.s && !m.g);
+  let h = `<div class="panel"><h2>Quick entry</h2><div class="row">
+    <label class="f">Date<input type="date" id="qDate" value="${a}"></label>
+    <label class="f">Sales ($)<input class="num" id="qS" inputmode="decimal" value="${inVal(e.s,2)}" placeholder="${inVal(bud(a,'s'))} budget"></label>
+    <label class="f">Gallons<input class="num" id="qG" inputmode="decimal" value="${inVal(e.g,1)}" placeholder="${inVal(bud(a,'g'))} budget"></label>
+    <button class="primary" id="qSave">Save day</button></div>
+    ${noBud?`<p class="warn">No budget set for ${y} yet — add it on the <a href="#" data-goto="budget">Budgets</a> tab.</p>`:''}
+    ${noAct&&!noBud?`<p class="note">No actuals entered for ${fmtDate(a,{month:'long',day:'numeric'})} yet, so today's budget counts as "missed" in the to-date numbers. Enter today's numbers, or click <b>Last entered</b> to view as of your last complete day.</p>`:''}
+  </div><div class="grid">`;
+  for(const p of P){
+    const s=periodData(p,'s'), g=periodData(p,'g');
+    const ppg = g.a>0 ? s.a/g.a : null, bppg = g.b>0 ? s.b/g.b : null;
+    h += `<div class="card"><div class="hd"><b>${p.name}</b><span class="sub">${p.label}</span></div>
+      <div class="metrics">${metricBlock(s,'s',p)}${metricBlock(g,'g',p)}</div>
+      <div class="kv" style="margin-top:10px;border-top:1px solid var(--line);padding-top:8px"><span>Avg $ / gallon (actual · budget)</span><span>${ppg==null?'—':'$'+ppg.toFixed(2)} · ${bppg==null?'—':'$'+bppg.toFixed(2)}</span></div>
+    </div>`;
+  }
+  h += `</div><p class="note">Forecast method: ${METHODS[S.settings.method]}. Change it on the Forecast tab.</p>`;
+  $('tab-dash').innerHTML=h;
+}
+
+function rDaily(){
+  const y=curY(), m=UI.dailyMonth, yr=Yr(y), n=dim(y,m), t=todayStr();
+  let h=`<div class="panel"><div class="row" style="justify-content:space-between">
+    <div class="row"><label class="f">Month<select id="dMonth">${MONTHS_L.map((x,i)=>`<option value="${i}" ${i===m?'selected':''}>${x} ${y}</option>`).join('')}</select></label>
+    <button id="dPrev">◀</button><button id="dNext">▶</button></div>
+    <button id="dClearOv">Clear daily budget overrides this month</button></div>
+    <p class="note">Type actuals straight into the table (Enter moves down). Daily budgets are calculated from the monthly budget and day-of-week weights — type over any of them (e.g. holidays, sale events) and the rest of the month rebalances. Overridden cells are highlighted.</p></div>
+  <div class="panel tbl-wrap"><table><thead><tr><th>Date</th><th>Day</th>
+    <th>Budget $</th><th>Actual $</th><th>Var $</th><th>Budget gal</th><th>Actual gal</th><th>Var gal</th><th>$ / gal</th></tr></thead><tbody>`;
+  const T={bs:0,as:0,bg:0,ag:0};
+  for(let d=1; d<=n; d++){
+    const s=ds(y,m,d), ov=yr.ov[s]||{}, bs=bud(s,'s'), bg=bud(s,'g'), as=act(s,'s'), ag=act(s,'g');
+    T.bs+=bs; T.bg+=bg; T.as+=as||0; T.ag+=ag||0;
+    const vs = as==null?null:as-bs, vg = ag==null?null:ag-bg;
+    h+=`<tr class="${s===t?'today':''} ${bs===0&&bg===0?'closed':''}"><td>${fmtDate(s)}</td><td>${DOW[dowOf(s)]}</td>
+      <td><input class="num ${ov.s!=null?'ov':''}" id="ovs-${s}" data-act="ov" data-d="${s}" data-k="s" data-row="${d}" data-col="1" inputmode="decimal" value="${ov.s!=null?inVal(ov.s,2):''}" placeholder="${inVal(bs)}"></td>
+      <td><input class="num" id="acs-${s}" data-act="act" data-d="${s}" data-k="s" data-row="${d}" data-col="2" inputmode="decimal" value="${inVal(as,2)}"></td>
+      <td class="${cls(vs)}">${vs==null?'':signed(vs,'s')}</td>
+      <td><input class="num ${ov.g!=null?'ov':''}" id="ovg-${s}" data-act="ov" data-d="${s}" data-k="g" data-row="${d}" data-col="3" inputmode="decimal" value="${ov.g!=null?inVal(ov.g,1):''}" placeholder="${inVal(bg)}"></td>
+      <td><input class="num" id="acg-${s}" data-act="act" data-d="${s}" data-k="g" data-row="${d}" data-col="4" inputmode="decimal" value="${inVal(ag,1)}"></td>
+      <td class="${cls(vg)}">${vg==null?'':signed(vg,'g').replace(' gal','')}</td>
+      <td>${as!=null&&ag>0?'$'+(as/ag).toFixed(2):''}</td></tr>`;
+  }
+  h+=`<tr class="sum"><td>Total</td><td></td><td>${money(T.bs)}</td><td>${money(T.as)}</td><td class="${cls(T.as-T.bs)}">${signed(T.as-T.bs,'s')}</td>
+    <td>${gals(T.bg)}</td><td>${gals(T.ag)}</td><td class="${cls(T.ag-T.bg)}">${signed(T.ag-T.bg,'g').replace(' gal','')}</td><td>${T.ag>0?'$'+(T.as/T.ag).toFixed(2):''}</td></tr></tbody></table></div>`;
+  $('tab-daily').innerHTML=h;
+}
+
+function rBudget(){
+  const y=curY(), yr=Yr(y), dw=S.settings.dow;
+  const tot={s:0,g:0}; yr.months.forEach(m=>{tot.s+=m.s||0; tot.g+=m.g||0;});
+  const wsum = yr.mw.reduce((a,b)=>a+(+b||0),0);
+  let h=`<div class="panel"><h2>${y} annual targets</h2><div class="row">
+    <label class="f">Annual sales budget ($)<input class="num" id="annS" data-act="ann" data-k="s" inputmode="decimal" value="${inVal(yr.annualS)}"></label>
+    <label class="f">Annual gallons budget<input class="num" id="annG" data-act="ann" data-k="g" inputmode="decimal" value="${inVal(yr.annualG)}"></label>
+    <button class="primary" id="spread">Spread annual across months by weight</button></div>
+    <p class="note">Spreading overwrites the 12 monthly budgets below using the month weights. You can then type over any month — the monthly numbers are what everything else uses.</p>
+    <div class="row" style="margin-top:12px;border-top:1px solid var(--line);padding-top:12px">
+      <label class="f">Sales growth %<input class="num sm" id="growS" data-act="set" data-k="growS" inputmode="decimal" value="${inVal(S.settings.growS,2)}"></label>
+      <label class="f">Gallons growth %<input class="num sm" id="growG" data-act="set" data-k="growG" inputmode="decimal" value="${inVal(S.settings.growG,2)}"></label>
+      <button id="fromPrior">Build ${y} budget from ${y-1} (actuals + forecast) × growth</button></div>
+  </div>
+  <div class="panel tbl-wrap"><h2>Monthly budgets — ${y}</h2><table><thead><tr><th>Month</th><th>Weight %</th><th>Sales budget</th><th>Gallons budget</th><th>Budget $ / gal</th><th>Selling days</th></tr></thead><tbody>`;
+  for(let q=0;q<4;q++){
+    const qt={s:0,g:0};
+    for(let m=q*3;m<q*3+3;m++){
+      const mo=yr.months[m]; qt.s+=mo.s||0; qt.g+=mo.g||0;
+      let open=0; for(let d=1;d<=dim(y,m);d++) if(bud(ds(y,m,d),'s')>0||bud(ds(y,m,d),'g')>0) open++;
+      h+=`<tr><td>${MONTHS_L[m]}</td>
+        <td><input class="num sm" id="mw-${m}" data-act="mw" data-m="${m}" data-row="${m}" data-col="0" inputmode="decimal" value="${inVal(yr.mw[m],2)}"></td>
+        <td><input class="num" id="ms-${m}" data-act="month" data-m="${m}" data-k="s" data-row="${m}" data-col="1" inputmode="decimal" value="${inVal(mo.s)}"></td>
+        <td><input class="num" id="mg-${m}" data-act="month" data-m="${m}" data-k="g" data-row="${m}" data-col="2" inputmode="decimal" value="${inVal(mo.g)}"></td>
+        <td>${mo.g>0?'$'+(mo.s/mo.g).toFixed(2):'—'}</td><td>${open}</td></tr>`;
+    }
+    h+=`<tr class="sum"><td>Q${q+1}</td><td></td><td>${money(qt.s)}</td><td>${gals(qt.g)}</td><td>${qt.g>0?'$'+(qt.s/qt.g).toFixed(2):'—'}</td><td></td></tr>`;
+  }
+  h+=`<tr class="sum"><td>Year</td><td class="${Math.abs(wsum-100)>0.01?'neg':''}">${wsum.toFixed(1)}%</td><td>${money(tot.s)}</td><td>${gals(tot.g)}</td><td>${tot.g>0?'$'+(tot.s/tot.g).toFixed(2):'—'}</td><td></td></tr></tbody></table>`;
+  if(yr.annualS && Math.round(tot.s)!==Math.round(yr.annualS)) h+=`<p class="warn">Monthly sales add up to ${money(tot.s)}, which is ${signed(tot.s-yr.annualS,'s')} vs. the annual target of ${money(yr.annualS)}.</p>`;
+  if(yr.annualG && Math.round(tot.g)!==Math.round(yr.annualG)) h+=`<p class="warn">Monthly gallons add up to ${gals(tot.g)}, which is ${signed(tot.g-yr.annualG,'g')} vs. the annual target of ${gals(yr.annualG)}.</p>`;
+  if(Math.abs(wsum-100)>0.01) h+=`<p class="note">Weights don't need to total 100 — they're used as proportions — but 100 makes them easy to read.</p>`;
+  h+=`</div><div class="panel"><h2>Day-of-week weights</h2>
+    <p class="note" style="margin:0 0 10px">How the monthly budget is split across days. 1 = a normal day, 1.2 = 20% busier, 0 = closed. Applies to every year.</p>
+    <div class="row">${DOW.map((d,i)=>`<label class="f">${d}<input class="num sm" id="dw-${i}" data-act="dw" data-i="${i}" inputmode="decimal" value="${inVal(dw[i],2)}"></label>`).join('')}
+    <button id="dwReset">Reset</button></div></div>`;
+  $('tab-budget').innerHTML=h;
+}
+
+function rFcst(){
+  const y=curY(), k=UI.fMetric, asOf=UI.asOf, ctx=yearCtx(y,asOf,k);
+  const rows=[]; let T={b:0,a:0,f:0};
+  for(let m=0;m<12;m++){
+    const [a,b]=monthRange(y,m), st=stats(a,b,asOf,k), f=forecast(st,k,ctx);
+    rows.push({m,b:st.b,a:st.a,f,state: b<=asOf?'Actual':(a>asOf?'Forecast':'In progress')});
+    T.b+=st.b; T.a+=st.a; T.f+=f;
+  }
+  const label=k==='s'?'Sales':'Gallons';
+  let h=`<div class="panel"><div class="row">
+    <label class="f">Show<select id="fMetric"><option value="s" ${k==='s'?'selected':''}>Sales ($)</option><option value="g" ${k==='g'?'selected':''}>Gallons</option></select></label>
+    <label class="f" style="flex:1;min-width:240px">Forecast method<select id="fMethod">${Object.entries(METHODS).map(([v,t])=>`<option value="${v}" ${S.settings.method===v?'selected':''}>${t}</option>`).join('')}</select></label>
+    <label class="f">Sales adjustment %<input class="num sm" id="adjS" data-act="set" data-k="adjS" inputmode="decimal" value="${inVal(S.settings.adjS,2)}"></label>
+    <label class="f">Gallons adjustment %<input class="num sm" id="adjG" data-act="set" data-k="adjG" inputmode="decimal" value="${inVal(S.settings.adjG,2)}"></label>
+  </div><p class="note">Forecast = actuals through ${fmtDate(asOf,{month:'long',day:'numeric',year:'numeric'})} + a projection of the rest. The adjustment % is a what-if on top of the method — e.g. +5% for a price increase or big contractor job, −10% for a slow season. Year-to-date you are at <b>${pct(ctx.fac)}</b> of ${label.toLowerCase()} budget.</p></div>
+  <div class="grid" style="margin-bottom:14px">
+    <div class="card"><div class="sub">${y} ${label} budget</div><div class="metric"><div class="big">${fmtK(T.b,k)}</div></div></div>
+    <div class="card"><div class="sub">Actual year to date</div><div class="metric"><div class="big">${fmtK(T.a,k)}</div></div></div>
+    <div class="card"><div class="sub">Forecast year end</div><div class="metric"><div class="big">${fmtK(T.f,k)}</div><div class="of ${cls(T.f-T.b)}">${signed(T.f-T.b,k)} vs. budget (${pct(T.b>0?T.f/T.b:null)})</div></div></div>
+  </div>
+  <div class="panel"><h2>${label} by month — ${y}</h2>
+    <div class="legend"><span><i style="background:var(--budget)"></i>Budget</span><span><i style="background:var(--accent)"></i>Actual</span><span><i style="background:var(--fcst)"></i>Forecast (rest of month)</span></div>
+    ${chart(rows,k)}</div>
+  <div class="panel tbl-wrap"><table><thead><tr><th>Month</th><th class="l">Status</th><th>Budget</th><th>Actual</th><th>Forecast</th><th>Fcst vs budget</th><th>% of budget</th><th>Cumulative budget</th><th>Cumulative forecast</th></tr></thead><tbody>`;
+  let cb=0, cf=0;
+  for(let q=0;q<4;q++){
+    const qt={b:0,a:0,f:0};
+    for(const r of rows.slice(q*3,q*3+3)){
+      qt.b+=r.b; qt.a+=r.a; qt.f+=r.f; cb+=r.b; cf+=r.f;
+      h+=`<tr><td>${MONTHS_L[r.m]}</td><td class="l sub">${r.state}</td><td>${fmtK(r.b,k)}</td><td>${fmtK(r.a,k)}</td><td><b>${fmtK(r.f,k)}</b></td>
+        <td class="${cls(r.f-r.b)}">${signed(r.f-r.b,k)}</td><td>${pct(r.b>0?r.f/r.b:null)}</td><td>${fmtK(cb,k)}</td><td>${fmtK(cf,k)}</td></tr>`;
+    }
+    h+=`<tr class="sum"><td>Q${q+1}</td><td></td><td>${fmtK(qt.b,k)}</td><td>${fmtK(qt.a,k)}</td><td>${fmtK(qt.f,k)}</td><td class="${cls(qt.f-qt.b)}">${signed(qt.f-qt.b,k)}</td><td>${pct(qt.b>0?qt.f/qt.b:null)}</td><td></td><td></td></tr>`;
+  }
+  h+=`<tr class="sum"><td>Year</td><td></td><td>${fmtK(T.b,k)}</td><td>${fmtK(T.a,k)}</td><td>${fmtK(T.f,k)}</td><td class="${cls(T.f-T.b)}">${signed(T.f-T.b,k)}</td><td>${pct(T.b>0?T.f/T.b:null)}</td><td></td><td></td></tr></tbody></table></div>`;
+  $('tab-fcst').innerHTML=h;
+}
+
+function chart(rows,k){
+  const W=760,H=260,L=64,R=10,T=10,B=26, cw=(W-L-R)/12;
+  const max=Math.max(1,...rows.map(r=>Math.max(r.b,r.f,r.a)))*1.08;
+  const yv=v=>T+(H-T-B)*(1-v/max);
+  const short=v=> k==='s' ? (v>=1e6?'$'+(v/1e6).toFixed(1)+'M':v>=1e3?'$'+Math.round(v/1e3)+'k':'$'+Math.round(v)) : (v>=1e3?(v/1e3).toFixed(1)+'k':Math.round(v));
+  let g='';
+  for(let i=0;i<=4;i++){ const v=max*i/4, yy=yv(v); g+=`<line x1="${L}" x2="${W-R}" y1="${yy}" y2="${yy}" stroke="var(--line)"/><text x="${L-6}" y="${yy+4}" text-anchor="end">${short(v)}</text>`; }
+  rows.forEach((r,i)=>{
+    const x=L+i*cw, bw=cw*0.36;
+    g+=`<rect x="${x+cw*0.1}" y="${yv(r.b)}" width="${bw}" height="${yv(0)-yv(r.b)}" rx="2" fill="var(--budget)"><title>${MONTHS_L[r.m]} budget: ${fmtK(r.b,k)}</title></rect>`;
+    const x2=x+cw*0.1+bw+2;
+    g+=`<rect x="${x2}" y="${yv(r.f)}" width="${bw}" height="${yv(0)-yv(r.f)}" rx="2" fill="var(--fcst)"><title>${MONTHS_L[r.m]} forecast: ${fmtK(r.f,k)}</title></rect>`;
+    if(r.a>0) g+=`<rect x="${x2}" y="${yv(r.a)}" width="${bw}" height="${yv(0)-yv(r.a)}" rx="2" fill="var(--accent)"><title>${MONTHS_L[r.m]} actual: ${fmtK(r.a,k)}</title></rect>`;
+    g+=`<text x="${x+cw/2}" y="${H-8}" text-anchor="middle">${MONTHS[r.m]}</text>`;
+  });
+  return `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" aria-label="Monthly budget, actual and forecast">${g}</svg>`;
+}
+
+function rSettings(){
+  const st=S.settings;
+  $('tab-settings').innerHTML=`<div class="panel"><h2>Store</h2><div class="row">
+    <label class="f" style="flex:1;min-width:200px">Store name<input id="storeName" value="${esc(st.storeName)}" placeholder="e.g. Store #1234"></label>
+    <label class="f">Week starts on<select id="weekStart"><option value="0" ${st.weekStart==0?'selected':''}>Sunday</option><option value="1" ${st.weekStart==1?'selected':''}>Monday</option><option value="6" ${st.weekStart==6?'selected':''}>Saturday</option></select></label>
+  </div></div>
+  <div class="panel"><h2>Back up &amp; move your data</h2>
+    <p class="note" style="margin:0 0 10px">Your numbers are saved automatically in this browser on this device. Download a backup regularly, and use it to move to another computer.</p>
+    <div class="row"><button class="primary" id="exportJson">Download backup (.json)</button>
+    <label class="f">Restore backup<input type="file" id="importJson" accept=".json,application/json"></label>
+    <button id="exportCsv">Download ${curY()} daily data (.csv)</button></div></div>
+  <div class="panel"><h2>Try it out</h2><div class="row">
+    <button id="demo">Load sample data for ${curY()}</button>
+    <button class="danger" id="clearYear">Clear ${curY()} data</button>
+    <button class="danger" id="resetAll">Erase everything</button></div></div>`;
+}
+
+/* ================= Events ================= */
+function toast(msg){ const t=$('toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toast.t); toast.t=setTimeout(()=>t.classList.remove('show'),1800); }
+function rerender(){
+  setTimeout(()=>{ const ae=document.activeElement, id=ae&&ae.id; render();
+    if(id){ const el=$(id); if(el){ el.focus(); if(el.tagName==='INPUT'&&el.type!=='date'&&el.type!=='file') try{el.select();}catch(e){} } } },0);
+}
+function setAsOf(s){ if(s){ UI.asOf=s; UI.dailyMonth=pd(s).m; render(); } }
+
+$('tabs').addEventListener('click',e=>{ const b=e.target.closest('button'); if(b){ UI.tab=b.dataset.tab; render(); } });
+$('asOf').addEventListener('change',e=>setAsOf(e.target.value));
+$('todayBtn').onclick=()=>setAsOf(todayStr());
+$('lastBtn').onclick=()=>{
+  let last=null; for(const y of Object.keys(S.years)) for(const [d,v] of Object.entries(S.years[y].act)) if((v.s!=null||v.g!=null)&&(!last||d>last)) last=d;
+  if(last) setAsOf(last); else toast('No actuals entered yet');
+};
+$('yearSel').addEventListener('change',e=>{ const p=pd(UI.asOf), y=+e.target.value; setAsOf(ds(y,p.m,Math.min(p.d,dim(y,p.m)))); });
+
+document.addEventListener('change',e=>{
+  const t=e.target, a=t.dataset.act, y=curY();
+  if(a){
+    const v=num(t.value);
+    if(a==='act'||a==='ov'){
+      const yr=Yw(pd(t.dataset.d).y), store = a==='act'?yr.act:yr.ov, o=store[t.dataset.d]||{};
+      if(v==null) delete o[t.dataset.k]; else o[t.dataset.k]=v;
+      if(o.s==null&&o.g==null) delete store[t.dataset.d]; else store[t.dataset.d]=o;
+    }
+    else if(a==='month'){ Yw(y).months[+t.dataset.m][t.dataset.k]=v||0; }
+    else if(a==='mw'){ Yw(y).mw[+t.dataset.m]=v||0; }
+    else if(a==='ann'){ Yw(y)[t.dataset.k==='s'?'annualS':'annualG']=v||0; }
+    else if(a==='dw'){ S.settings.dow[+t.dataset.i]=Math.max(0,v||0); }
+    else if(a==='set'){ S.settings[t.dataset.k]=v||0; }
+    save(); rerender(); return;
+  }
+  switch(t.id){
+    case 'qDate': setAsOf(t.value); break;
+    case 'dMonth': UI.dailyMonth=+t.value; render(); break;
+    case 'fMetric': UI.fMetric=t.value; render(); break;
+    case 'fMethod': S.settings.method=t.value; save(); render(); break;
+    case 'storeName': S.settings.storeName=t.value.trim(); save(); render(); break;
+    case 'weekStart': S.settings.weekStart=+t.value; save(); render(); break;
+    case 'importJson': importJson(t.files[0]); break;
+  }
+});
+
+document.addEventListener('keydown',e=>{
+  const t=e.target;
+  if(e.key==='Enter' && t.tagName==='INPUT'){
+    if(t.id==='qS'||t.id==='qG'){ e.preventDefault(); $('qSave').click(); return; }
+    if(t.dataset.row){
+      e.preventDefault();
+      const nx=document.querySelector(`input[data-col="${t.dataset.col}"][data-row="${+t.dataset.row+(e.shiftKey?-1:1)}"]`);
+      if(nx) nx.focus(); else t.blur();
+    }
+  }
+});
+
+document.addEventListener('click',e=>{
+  const t=e.target;
+  if(t.dataset.goto){ e.preventDefault(); UI.tab=t.dataset.goto; render(); return; }
+  const y=curY();
+  switch(t.id){
+    case 'qSave': {
+      const d=$('qDate').value; if(!d) return;
+      const yr=Yw(pd(d).y), sv=num($('qS').value), gv=num($('qG').value);
+      if(sv==null&&gv==null) delete yr.act[d]; else yr.act[d]={s:sv,g:gv};
+      save(); toast('Saved '+fmtDate(d)); setAsOf(d); break;
+    }
+    case 'dPrev': UI.dailyMonth=(UI.dailyMonth+11)%12; render(); break;
+    case 'dNext': UI.dailyMonth=(UI.dailyMonth+1)%12; render(); break;
+    case 'dClearOv': {
+      const yr=Yw(y); for(let d=1; d<=dim(y,UI.dailyMonth); d++) delete yr.ov[ds(y,UI.dailyMonth,d)];
+      save(); render(); toast('Overrides cleared'); break;
+    }
+    case 'spread': {
+      const yr=Yw(y), w=yr.mw.reduce((a,b)=>a+(+b||0),0);
+      if(!w) return toast('Month weights are all zero');
+      if(yr.months.some(m=>m.s||m.g) && !confirm('Replace all 12 monthly budgets with the annual targets spread by weight?')) return;
+      yr.months=yr.mw.map(x=>({s:Math.round(yr.annualS*x/w), g:Math.round(yr.annualG*x/w)}));
+      fixRound(yr); save(); render(); toast('Monthly budgets updated'); break;
+    }
+    case 'fromPrior': {
+      const py=y-1; if(!S.years[py]) return toast('No '+py+' data to build from');
+      const t2=todayStr(), asOf = t2>ds(py,11,31) ? ds(py,11,31) : t2;
+      const cs=yearCtx(py,asOf,'s'), cg=yearCtx(py,asOf,'g'), gs=1+S.settings.growS/100, gg=1+S.settings.growG/100;
+      const months=[...Array(12)].map((_,m)=>({s:Math.round(monthFc(py,m,asOf,'s',cs)*gs), g:Math.round(monthFc(py,m,asOf,'g',cg)*gg)}));
+      if(!months.some(m=>m.s||m.g)) return toast('No '+py+' numbers to build from');
+      if(Yr(y).months.some(m=>m.s||m.g) && !confirm(`Replace ${y} monthly budgets with ${py} actuals/forecast × growth?`)) return;
+      const yr=Yw(y); yr.months=months; yr.annualS=months.reduce((a,m)=>a+m.s,0); yr.annualG=months.reduce((a,m)=>a+m.g,0);
+      save(); render(); toast(y+' budget built from '+py); break;
+    }
+    case 'dwReset': S.settings.dow=DEF_DW.slice(); save(); render(); break;
+    case 'exportJson': download(`paint-goals-backup-${todayStr()}.json`, JSON.stringify(S,null,1), 'application/json'); break;
+    case 'exportCsv': exportCsv(y); break;
+    case 'demo': demo(y); break;
+    case 'clearYear': if(confirm(`Erase all ${y} budgets and actuals?`)){ delete S.years[y]; save(); render(); toast(y+' cleared'); } break;
+    case 'resetAll': if(confirm('Erase ALL data and settings? Download a backup first if you might need it.')){ S=blank(); save(); render(); toast('Everything erased'); } break;
+  }
+});
+
+function fixRound(yr){ // make rounded months add exactly to the annual targets
+  for(const [k,a] of [['s','annualS'],['g','annualG']]){
+    const diff=Math.round(yr[a])-yr.months.reduce((t,m)=>t+m[k],0);
+    if(diff){ let i=yr.mw.indexOf(Math.max(...yr.mw)); yr.months[i][k]+=diff; }
+  }
+}
+function download(name,text,type){
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([text],{type})); a.download=name;
+  document.body.appendChild(a); a.click(); setTimeout(()=>{URL.revokeObjectURL(a.href); a.remove();},500);
+}
+function exportCsv(y){
+  const rows=[['Date','Day','Budget Sales','Actual Sales','Budget Gallons','Actual Gallons']];
+  for(let s=ds(y,0,1); s<=ds(y,11,31); s=addDays(s,1)) rows.push([s,DOW[dowOf(s)],bud(s,'s').toFixed(2),act(s,'s')??'',bud(s,'g').toFixed(2),act(s,'g')??'']);
+  download(`paint-goals-${y}.csv`, rows.map(r=>r.join(',')).join('\n'), 'text/csv');
+}
+function importJson(file){
+  if(!file) return;
+  const r=new FileReader();
+  r.onload=()=>{ try{ const d=JSON.parse(r.result); if(!d.years) throw 0;
+      if(!confirm('Replace all current data with this backup?')) return;
+      const b=blank(); d.settings=Object.assign(b.settings,d.settings||{}); S=d; save(); render(); toast('Backup restored');
+    }catch(e){ alert('That file is not a valid backup.'); } };
+  r.readAsText(file);
+}
+function demo(y){
+  if(S.years[y] && !confirm(`Replace ${y} with sample data?`)) return;
+  const yr=newYear(); yr.annualS=1850000; yr.annualG=36500; S.years[y]=yr;
+  const w=yr.mw.reduce((a,b)=>a+b,0); yr.months=yr.mw.map(x=>({s:Math.round(yr.annualS*x/w),g:Math.round(yr.annualG*x/w)})); fixRound(yr);
+  save();
+  const end = todayStr()<ds(y,11,31) ? addDays(todayStr(),-1) : ds(y,11,31);
+  let seed=7; const rnd=()=>{ seed=(seed*16807)%2147483647; return seed/2147483647; };
+  for(let s=ds(y,0,1); s<=end; s=addDays(s,1)){
+    const bs=bud(s,'s'), bg=bud(s,'g'); if(!bs&&!bg) continue;
+    const f=0.9+rnd()*0.22, price=0.97+rnd()*0.06;
+    yr.act[s]={s:Math.round(bs*f*price*100)/100, g:Math.round(bg*f*10)/10};
+  }
+  save(); UI.asOf = end<ds(y,0,1)?todayStr():end; render(); toast('Sample data loaded');
+}
+
+render();
+</script>
+</body>
+</html>
