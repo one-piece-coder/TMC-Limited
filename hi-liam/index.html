@@ -52,6 +52,16 @@
     min-height: 1.4em;
     text-align: center;
   }
+  /* The color's name, big and clear */
+  #color-name {
+    font-family: "Fredoka", ui-rounded, system-ui, sans-serif;
+    font-weight: 700;
+    font-size: clamp(2rem, 10vw, 3.5rem);
+    letter-spacing: 0.04em;
+    margin: 0;
+    min-height: 1.2em;
+    text-align: center;
+  }
   #note { font-family: system-ui, sans-serif; font-size: 0.9rem; opacity: 0.75; margin: 0; }
 
   /* The small "Pick voices" menu for grown-ups */
@@ -138,6 +148,7 @@
   <p id="message" aria-live="polite"></p>
   <span class="hand right" aria-hidden="true">👋</span>
 </div>
+<p id="color-name" aria-live="polite"></p>
 <p id="note" hidden>Your browser can't speak, but here's the greeting anyway.</p>
 
 <details class="voices">
@@ -181,16 +192,19 @@
 
   // Background and text color pairs that are easy to read together.
   const colors = [
-    { bg: "#ffde59", fg: "#1a1a1a" },
-    { bg: "#1e3a8a", fg: "#ffffff" },
-    { bg: "#ff6b6b", fg: "#ffffff" },
-    { bg: "#0f766e", fg: "#fef3c7" },
-    { bg: "#f472b6", fg: "#1e1b4b" },
-    { bg: "#111827", fg: "#34d399" },
-    { bg: "#a3e635", fg: "#1f2937" },
-    { bg: "#7c3aed", fg: "#fde68a" },
-    { bg: "#fb923c", fg: "#1c1917" },
-    { bg: "#e0f2fe", fg: "#b91c1c" },
+    // Each background is one clear, simple color with its name, so Liam can
+    // learn them. The words are plain black or white so they never look like
+    // a different color.
+    { name: "Red",    bg: "#e53935", fg: "#ffffff" },
+    { name: "Orange", bg: "#fb8c00", fg: "#1a1a1a" },
+    { name: "Yellow", bg: "#ffd600", fg: "#1a1a1a" },
+    { name: "Green",  bg: "#43a047", fg: "#ffffff" },
+    { name: "Blue",   bg: "#1e88e5", fg: "#ffffff" },
+    { name: "Purple", bg: "#8e24aa", fg: "#ffffff" },
+    { name: "Pink",   bg: "#f48fb1", fg: "#1a1a1a" },
+    { name: "Brown",  bg: "#795548", fg: "#ffffff" },
+    { name: "Black",  bg: "#111111", fg: "#ffffff" },
+    { name: "White",  bg: "#ffffff", fg: "#1a1a1a" },
   ];
 
   const fonts = [
@@ -448,7 +462,8 @@
     return found || autoVoice(kind === "man") || voices[0] || null;
   }
 
-  function speak(kind, whenDone) {
+  // extra is more words to say after "Hi, Liam!", like the color's name
+  function speak(kind, whenDone, extra) {
     window.speechSynthesis.cancel(); // stop the last one if you push fast
     if (!voices.length) loadVoices();
     const voice = voiceFor(kind);
@@ -474,6 +489,7 @@
       words.voice = voice;
       words.lang = voice.lang;
     }
+    if (extra) words.text += " " + extra;
     if (whenDone) {
       words.onend = whenDone;
       words.onerror = whenDone;
@@ -525,8 +541,9 @@
         played = true;
         playTune();
       }
-      setTimeout(thenTune, 2500); // backup in case the voice never says it's done
-      speak(kind, thenTune);
+      setTimeout(thenTune, 4000); // backup in case the voice never says it's done
+      // Say the color too, with a little pause: "Hi, Liam! ... Yellow!"
+      speak(kind, thenTune, "... " + colors[lastColor].name + "!");
     } catch (e) {
       note.hidden = false;
       playTune();
@@ -553,6 +570,7 @@
     lastColor = pickNew(colors.length, lastColor);
     root.style.setProperty("--bg", colors[lastColor].bg);
     root.style.setProperty("--fg", colors[lastColor].fg);
+    document.getElementById("color-name").textContent = colors[lastColor].name;
 
     lastFont = pickNew(fonts.length, lastFont);
     root.style.setProperty("--font", fonts[lastFont]);
