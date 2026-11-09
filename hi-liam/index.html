@@ -70,6 +70,21 @@
     gap: 0.5rem;
     margin-top: 0.6rem;
   }
+  .extra { margin-top: 1.2rem; border-top: 1px solid currentColor; padding-top: 0.8rem; }
+  .extra-title { font-weight: 700; margin: 0; text-align: center; }
+  .extra-hint, .extra-count { margin: 0.4rem 0 0; font-size: 0.85rem; opacity: 0.85; text-align: center; }
+  .extra-list {
+    list-style: none;
+    margin: 0.6rem 0 0;
+    padding: 0;
+    max-height: 18rem;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .extra-list li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+  .extra-list label { display: flex; align-items: center; gap: 0.5rem; min-width: 0; overflow-wrap: anywhere; cursor: pointer; }
   .voice-toggle { display: flex; gap: 0.5rem; align-items: center; justify-content: center; margin-top: 0.8rem; cursor: pointer; }
   .voice-row select { font: inherit; padding: 0.35rem; min-width: 0; width: 100%; }
   .voices button.test {
@@ -148,6 +163,14 @@
     <button type="button" class="test" id="test-kid">Test</button>
   </div>
   <label class="voice-toggle"><input type="checkbox" id="use-cartoon" checked> Take turns with the fun voices too</label>
+
+  <div class="extra">
+    <p class="extra-title">More voices on this phone</p>
+    <p class="extra-hint">Tick any voice to add it to the turns. Voices you download show up here. If a new one is missing, close and reopen this page.</p>
+    <label class="voice-toggle"><input type="checkbox" id="show-all-langs"> Show other languages too</label>
+    <p class="extra-count" id="extra-count"></p>
+    <ul class="extra-list" id="extra-list"></ul>
+  </div>
 </details>
 
 <script>
@@ -314,11 +337,74 @@
       const all = window.speechSynthesis.getVoices();
       const english = all.filter(function (v) { return /^en/i.test(v.lang); });
       voices = english.length ? english : all;
-    } catch (e) { voices = []; }
+      allVoices = all;
+    } catch (e) { voices = []; allVoices = []; }
     fillMenu(manSelect, "hiLiam.manVoice");
     fillMenu(ladySelect, "hiLiam.ladyVoice");
     fillMenu(cartoonSelect, "hiLiam.cartoonVoice");
     fillMenu(kidSelect, "hiLiam.kidVoice");
+    fillExtraList();
+  }
+
+  // ---- Extra voices: every voice on this device, tick to add to the turns ----
+  const extraList = document.getElementById("extra-list");
+  const extraCount = document.getElementById("extra-count");
+  const showAllLangs = document.getElementById("show-all-langs");
+  let allVoices = [];
+  let extraNames = [];
+  try { extraNames = JSON.parse(localStorage.getItem("hiLiam.extraVoices") || "[]"); } catch (e) {}
+
+  function saveExtras() {
+    try { localStorage.setItem("hiLiam.extraVoices", JSON.stringify(extraNames)); } catch (e) {}
+  }
+
+  // Ticked voices that are really on this device right now
+  function extraVoices() {
+    return extraNames.map(function (name) {
+      return allVoices.find(function (v) { return v.name === name; });
+    }).filter(Boolean);
+  }
+
+  function updateCount() {
+    const n = extraVoices().length;
+    extraCount.textContent = n === 0 ? "No extra voices ticked yet."
+      : n === 1 ? "1 extra voice is taking turns." : n + " extra voices are taking turns.";
+  }
+
+  function fillExtraList() {
+    if (!extraList) return;
+    const list = showAllLangs.checked ? allVoices : voices;
+    extraList.innerHTML = "";
+    list.forEach(function (v, i) {
+      const item = document.createElement("li");
+      const label = document.createElement("label");
+      const box = document.createElement("input");
+      box.type = "checkbox";
+      box.id = "extra-voice-" + i;
+      box.checked = extraNames.indexOf(v.name) !== -1;
+      box.addEventListener("change", function () {
+        extraNames = extraNames.filter(function (n) { return n !== v.name; });
+        if (box.checked) extraNames.push(v.name);
+        saveExtras();
+        updateCount();
+      });
+      label.appendChild(box);
+      label.appendChild(document.createTextNode(v.name + " (" + v.lang + ")"));
+      const test = document.createElement("button");
+      test.type = "button";
+      test.className = "test";
+      test.textContent = "Test";
+      test.addEventListener("click", function () { speak({ voice: v }); });
+      item.appendChild(label);
+      item.appendChild(test);
+      extraList.appendChild(item);
+    });
+    if (!list.length) {
+      const item = document.createElement("li");
+      item.textContent = "No voices found yet. Push the big button once, then reopen this menu.";
+      extraList.appendChild(item);
+    }
+    updateCount();
   }
   if ("speechSynthesis" in window) {
     loadVoices();
@@ -345,8 +431,9 @@
   }
 
   // Use the voice picked in the menu, or choose one automatically.
-  // kind is "man", "lady", "cartoon" or "kid".
+  // kind is "man", "lady", "cartoon", "kid", or { voice: v } for an extra voice.
   function voiceFor(kind) {
+    if (typeof kind === "object") return kind.voice;
     const selects = { man: manSelect, lady: ladySelect, cartoon: cartoonSelect, kid: kidSelect };
     const select = selects[kind];
     const found = voices.find(function (v) { return v.name === select.value; });
@@ -387,6 +474,7 @@
     window.speechSynthesis.speak(words);
   }
 
+  showAllLangs.addEventListener("change", fillExtraList);
   manSelect.addEventListener("change", function () { saveVoice("hiLiam.manVoice", manSelect.value); });
   ladySelect.addEventListener("change", function () { saveVoice("hiLiam.ladyVoice", ladySelect.value); });
   cartoonSelect.addEventListener("change", function () { saveVoice("hiLiam.cartoonVoice", cartoonSelect.value); });
@@ -419,6 +507,8 @@
     try {
       // Take turns: man, lady, cartoon, kid (or just man and lady if fun voices are off)
       const order = useCartoon.checked ? ["man", "lady", "cartoon", "kid"] : ["man", "lady"];
+      // Then every extra voice you ticked
+      extraVoices().forEach(function (v) { order.push({ voice: v }); });
       const kind = order[turn % order.length];
       turn++;
       let played = false;
