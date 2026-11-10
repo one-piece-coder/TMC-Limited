@@ -1,0 +1,152 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meal Planner</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <h1>🍽️ Meal Planner</h1>
+    <div class="view-switch" role="tablist" aria-label="View">
+      <button data-view="day" role="tab">Day</button>
+      <button data-view="week" role="tab">Week</button>
+      <button data-view="month" role="tab">Month</button>
+    </div>
+    <div class="top-actions">
+      <button id="btn-generate" class="primary">✨ Generate meals</button>
+      <button id="btn-library">📖 Meal library</button>
+      <button id="btn-more" aria-label="More options">⋯</button>
+    </div>
+  </header>
+
+  <nav class="datebar">
+    <button id="btn-prev" aria-label="Previous">‹</button>
+    <button id="btn-today">Today</button>
+    <button id="btn-next" aria-label="Next">›</button>
+    <h2 id="period-title"></h2>
+    <span id="period-stats" class="muted"></span>
+  </nav>
+
+  <main id="view"></main>
+
+  <!-- Edit a single meal slot -->
+  <dialog id="dlg-slot">
+    <form method="dialog" id="form-slot">
+      <h3 id="slot-title"></h3>
+      <label>Meal
+        <input id="slot-name" list="slot-options" autocomplete="off" placeholder="Type or pick a meal" />
+      </label>
+      <datalist id="slot-options"></datalist>
+      <label>Notes
+        <input id="slot-note" autocomplete="off" placeholder="Optional — e.g. leftovers, eating out" />
+      </label>
+      <div class="suggestions" id="slot-suggestions"></div>
+      <div class="dlg-actions">
+        <button type="button" id="slot-random">🎲 Surprise me</button>
+        <button type="button" id="slot-clear" class="danger">Clear</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="save" class="primary">Save</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Generator -->
+  <dialog id="dlg-generate">
+    <form method="dialog" id="form-generate">
+      <h3>✨ Meal generator</h3>
+      <p class="muted">Automatically fill your plan from your meal library.</p>
+
+      <fieldset>
+        <legend>Fill</legend>
+        <label class="radio"><input type="radio" name="range" value="day" /> This day</label>
+        <label class="radio"><input type="radio" name="range" value="week" checked /> This week</label>
+        <label class="radio"><input type="radio" name="range" value="month" /> This month</label>
+        <label class="radio"><input type="radio" name="range" value="custom" /> Custom range</label>
+        <div class="custom-range">
+          <input type="date" name="from" /> to <input type="date" name="to" />
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Meals</legend>
+        <label class="check"><input type="checkbox" name="slot" value="breakfast" checked /> Breakfast</label>
+        <label class="check"><input type="checkbox" name="slot" value="lunch" checked /> Lunch</label>
+        <label class="check"><input type="checkbox" name="slot" value="dinner" checked /> Dinner</label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Options</legend>
+        <label class="check"><input type="checkbox" name="onlyEmpty" checked /> Only fill empty slots (keep what I've planned)</label>
+        <label class="check"><input type="checkbox" name="vegetarian" /> Vegetarian only</label>
+        <label class="check"><input type="checkbox" name="quick" /> Quick meals only (≤ 30 min)</label>
+        <label class="inline">Don't repeat a meal within
+          <input type="number" name="noRepeat" min="0" max="30" value="5" /> days
+        </label>
+        <label class="check"><input type="checkbox" name="leftovers" /> Use dinner leftovers for next day's lunch</label>
+      </fieldset>
+
+      <div class="dlg-actions">
+        <button type="button" id="gen-clear" class="danger">Clear range</button>
+        <span class="spacer"></span>
+        <button value="cancel" formnovalidate>Cancel</button>
+        <button value="go" class="primary">Generate</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Library -->
+  <dialog id="dlg-library" class="wide">
+    <div class="lib-head">
+      <h3>📖 Meal library</h3>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <p class="muted">The generator picks from these meals. Add your own favorites!</p>
+    <form id="form-add-meal" class="add-meal">
+      <input name="name" required placeholder="New meal name" autocomplete="off" />
+      <label class="check"><input type="checkbox" name="type" value="breakfast" /> B</label>
+      <label class="check"><input type="checkbox" name="type" value="lunch" /> L</label>
+      <label class="check"><input type="checkbox" name="type" value="dinner" checked /> D</label>
+      <label class="check" title="Vegetarian"><input type="checkbox" name="veg" /> 🥦</label>
+      <label class="check" title="Quick (≤ 30 min)"><input type="checkbox" name="quick" /> ⚡</label>
+      <button class="primary">Add</button>
+    </form>
+    <div class="lib-filter">
+      <input id="lib-search" type="search" placeholder="Search meals…" />
+      <select id="lib-type">
+        <option value="">All meals</option>
+        <option value="breakfast">Breakfast</option>
+        <option value="lunch">Lunch</option>
+        <option value="dinner">Dinner</option>
+      </select>
+    </div>
+    <ul id="lib-list" class="lib-list"></ul>
+  </dialog>
+
+  <!-- More menu -->
+  <dialog id="dlg-more">
+    <div class="lib-head">
+      <h3>Options</h3>
+      <button type="button" class="close" data-close>✕</button>
+    </div>
+    <label class="inline">Week starts on
+      <select id="opt-weekstart">
+        <option value="0">Sunday</option>
+        <option value="1">Monday</option>
+      </select>
+    </label>
+    <div class="stack">
+      <button id="btn-export">⬇️ Export backup (JSON)</button>
+      <label class="button-like">⬆️ Import backup<input type="file" id="file-import" accept="application/json" hidden /></label>
+      <button id="btn-reset-lib">↺ Restore default meal library</button>
+      <button id="btn-wipe" class="danger">🗑️ Erase all planned meals</button>
+    </div>
+  </dialog>
+
+  <div id="toast" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>
