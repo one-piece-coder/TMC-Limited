@@ -408,3 +408,15 @@ a.chip { text-decoration: none; }
 .checklist-item { display: flex; gap: 14px; align-items: flex-start; }
 .checklist-item .check { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); color: #fff; font-weight: 800; }
 .checklist-item.done .check { background: var(--ok); border-color: var(--ok); }
+
+/* ---------- legal pages ---------- */
+.legal { max-width: 760px; }
+.legal h2 { margin-top: 32px; scroll-margin-top: 80px; }
+.legal h3 { margin: 18px 0 6px; font-size: 1rem; }
+.legal li { margin: 4px 0; }
+.legal-toc { margin: 16px 0 8px; }
+.legal-toc ol { margin: 8px 0 0; padding-left: 22px; columns: 2 220px; }
+.legal-toc a { text-decoration: none; }
+.btn.danger { background: var(--warn); color: #fff; }
+.danger-zone summary { cursor: pointer; }
+.danger-zone[open] summary { margin-bottom: 8px; }

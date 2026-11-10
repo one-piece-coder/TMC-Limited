@@ -89,6 +89,8 @@ function makeApp(overrides = {}) {
       return { is_appliance: true, catalog_id: "dryer" };
     },
     stripe: null,
+    // Collects emails instead of printing them; tests that check email pass their own.
+    mailer: { enabled: true, send: async () => {} },
     ...overrides,
     ...(overrides.config ? { config } : {}),
   });
@@ -181,13 +183,14 @@ test("sign-in attempts are rate limited", async () => {
 // ---------- scanning & quota ----------
 
 test("scanning requires an account and enforces the free monthly quota", async () => {
-  const { app } = makeApp({ config: { freeScansPerMonth: 2 } });
+  const { app, db } = makeApp({ config: { freeScansPerMonth: 2 } });
   await withServer(app, async (base) => {
     const c = client(base);
     const photo = { image: "aGVsbG8=", mediaType: "image/png" };
     assert.equal((await c.post("/api/identify", photo)).status, 401);
 
     await c.post("/api/signup", { email: "pat@example.com", password: "password1" });
+    db.markEmailVerified(db.userByEmail("pat@example.com").id);
     // Failed scans are refunded.
     assert.equal((await c.post("/api/identify", {})).status, 400);
 
@@ -371,7 +374,8 @@ test("sitemap and robots.txt list every guide", async () => {
     const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
     const locs = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1]);
     const guideCount = CATALOG.reduce((n, a) => n + 1 + a.repairs.length, 0);
-    assert.equal(locs.length, guideCount + 2);
+    assert.equal(locs.length, guideCount + 4);
+    assert.ok(locs.includes("https://fixit.example/privacy") && locs.includes("https://fixit.example/terms"));
     assert.ok(locs.includes("https://fixit.example/guides/toilet/toilet-running"));
     const robots = await (await fetch(`${base}/robots.txt`)).text();
     assert.match(robots, /Disallow: \/api\//);
@@ -386,7 +390,7 @@ function captureMailer() {
   return { sent, mailer: { enabled: true, send: async (msg) => sent.push(msg) } };
 }
 const tick = () => new Promise((r) => setTimeout(r, 20));
-const tokenFrom = (msg) => msg.text.match(/#\/reset\?token=([\w-]+)/)[1];
+const tokenFrom = (msg) => msg.text.match(/#\/(?:reset|verify)\?token=([\w-]+)/)[1];
 
 test("password reset: emails a one-time link, changes the password, signs out other devices", async () => {
   const { sent, mailer } = captureMailer();
@@ -403,10 +407,11 @@ test("password reset: emails a one-time link, changes the password, signs out ot
     assert.equal(unknown.status, 200);
     assert.deepEqual(unknown.data, known.data);
     await tick();
-    assert.equal(sent.length, 1);
-    assert.equal(sent[0].to, "pat@example.com");
-    assert.match(sent[0].text, /^https:\/\/fixit\.example\/#\/reset\?token=/m);
-    const token = tokenFrom(sent[0]);
+    const resets = sent.filter((m) => /^Reset/.test(m.subject));
+    assert.equal(resets.length, 1);
+    assert.equal(resets[0].to, "pat@example.com");
+    assert.match(resets[0].text, /^https:\/\/fixit\.example\/#\/reset\?token=/m);
+    const token = tokenFrom(resets[0]);
 
     const anon = client(base);
     assert.equal((await anon.post("/api/password/reset", { token, password: "short" })).status, 400);
@@ -435,7 +440,7 @@ test("password reset: a newer link replaces the old one, and links expire", asyn
     await c.post("/api/password/forgot", { email: "pat@example.com" });
     await c.post("/api/password/forgot", { email: "pat@example.com" });
     await tick();
-    const [first, second] = sent.map(tokenFrom);
+    const [first, second] = sent.filter((m) => /^Reset/.test(m.subject)).map(tokenFrom);
     assert.equal((await c.post("/api/password/reset", { token: first, password: "new-password" })).status, 400);
 
     db.raw.exec("UPDATE password_resets SET expires_at = 0");
@@ -578,11 +583,12 @@ test("service requests are saved, emailed to the owner, and spam-guarded", async
     assert.equal((await visitor.post("/api/leads", { ...lead, name: "Bot", website: "spam.example" })).status, 201);
     await tick();
 
-    assert.equal(sent.length, 1);
-    assert.equal(sent[0].to, "jobs@acme.example");
-    assert.match(sent[0].subject, /New repair request: Jo \(Clothes Dryer\)/);
-    assert.match(sent[0].text, /They were reading: How to Fix a Dryer That Won't Heat/);
-    assert.match(sent[0].text, /https:\/\/acme\.example\/#\/admin/);
+    const jobs = sent.filter((m) => /^New repair request/.test(m.subject));
+    assert.equal(jobs.length, 1);
+    assert.equal(jobs[0].to, "jobs@acme.example");
+    assert.match(jobs[0].subject, /New repair request: Jo \(Clothes Dryer\)/);
+    assert.match(jobs[0].text, /They were reading: How to Fix a Dryer That Won't Heat/);
+    assert.match(jobs[0].text, /https:\/\/acme\.example\/#\/admin/);
 
     const { leads } = (await owner.get("/api/admin/leads")).data;
     assert.equal(leads.length, 1);
@@ -607,6 +613,12 @@ test("service requests are saved, emailed to the owner, and spam-guarded", async
     assert.equal(item("appUrl").done, true);
     assert.equal(item("billing").done, false);
     assert.equal(item("profile").done, false, "no phone/service area yet");
+
+    // Deleting a request (spam, or a customer's deletion request).
+    assert.equal((await visitor.del(`/api/admin/leads/${id}`)).status, 401);
+    assert.equal((await owner.del(`/api/admin/leads/${id}`)).status, 200);
+    assert.equal((await owner.del(`/api/admin/leads/${id}`)).status, 404);
+    assert.equal((await owner.get("/api/admin/leads")).data.leads.length, 0);
 
     // Booking can be switched off.
     await owner.put("/api/admin/settings", { bookingEnabled: false });
@@ -658,4 +670,164 @@ test("health check and owner backup download", async () => {
 test("APP_URL falls back to Render's address", () => {
   assert.equal(loadConfig({ RENDER_EXTERNAL_URL: "https://shop.onrender.com/" }).appUrl, "https://shop.onrender.com");
   assert.equal(loadConfig({ APP_URL: "https://shop.com", RENDER_EXTERNAL_URL: "https://x.onrender.com" }).appUrl, "https://shop.com");
+});
+
+// ---------- email verification ----------
+
+test("new accounts must confirm their email before scanning", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app } = makeApp({ mailer, config: { appUrl: "https://fixit.example" } });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    const photo = { image: "aGVsbG8=", mediaType: "image/png" };
+    const signup = await c.post("/api/signup", { email: "pat@example.com", password: "password1" });
+    assert.equal(signup.data.user.emailVerified, false);
+    assert.equal((await c.get("/api/config")).data.verificationRequired, true);
+    await tick();
+    const welcome = sent.filter((m) => /^Confirm your email/.test(m.subject));
+    assert.equal(welcome.length, 1);
+    assert.match(welcome[0].text, /^https:\/\/fixit\.example\/#\/verify\?token=/m);
+
+    const blocked = await c.post("/api/identify", photo);
+    assert.equal(blocked.status, 403);
+    assert.equal(blocked.data.code, "verify_email");
+
+    // Resending replaces the old link.
+    await c.post("/api/email/resend");
+    await tick();
+    const [oldLink, newLink] = sent.filter((m) => /^Confirm/.test(m.subject)).map(tokenFrom);
+    assert.equal((await c.post("/api/email/verify", { token: oldLink })).data.code, "bad_token");
+
+    // The link works from any browser, even signed out.
+    const ok = await client(base).post("/api/email/verify", { token: newLink });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.data.user, null, "doesn't reveal account details to another browser");
+    assert.equal((await c.get("/api/me")).data.user.emailVerified, true);
+    assert.equal((await c.post("/api/identify", photo)).status, 200);
+    assert.equal((await client(base).post("/api/email/verify", { token: newLink })).status, 400, "one-time link");
+    assert.equal((await c.post("/api/email/resend")).data.alreadyVerified, true);
+  });
+});
+
+test("verification is skipped when the site can't send email, and resends are limited", async () => {
+  const { app } = makeApp({ mailer: { enabled: false, send: async () => {} }, config: { production: true } });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    await c.post("/api/signup", { email: "pat@example.com", password: "password1" });
+    assert.equal((await c.get("/api/config")).data.verificationRequired, false);
+    assert.equal((await c.post("/api/identify", { image: "aGVsbG8=", mediaType: "image/png" })).status, 200);
+  });
+
+  const { app: app2 } = makeApp();
+  await withServer(app2, async (base) => {
+    const c = client(base);
+    await c.post("/api/signup", { email: "sam@example.com", password: "password1" });
+    const statuses = [];
+    for (let i = 0; i < 4; i++) statuses.push((await c.post("/api/email/resend")).status);
+    assert.deepEqual(statuses, [200, 200, 200, 429]);
+  });
+});
+
+test("a password reset also confirms the email", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app } = makeApp({ mailer });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    await c.post("/api/signup", { email: "pat@example.com", password: "password1" });
+    await c.post("/api/password/forgot", { email: "pat@example.com" });
+    await tick();
+    const token = tokenFrom(sent.find((m) => /^Reset/.test(m.subject)));
+    const res = await c.post("/api/password/reset", { token, password: "password2" });
+    assert.equal(res.data.user.emailVerified, true);
+  });
+});
+
+// ---------- delete account ----------
+
+test("members can delete their account and data", async () => {
+  const { app, db } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    await c.post("/api/signup", { email: "pat@example.com", password: "password1" });
+    const userId = db.userByEmail("pat@example.com").id;
+    db.markEmailVerified(userId);
+    await c.put("/api/projects/dryer/dryer-no-heat", { done: [0] });
+    await c.post("/api/identify", { image: "aGVsbG8=", mediaType: "image/png" });
+    await c.post("/api/leads", { name: "Pat", phone: "5125550100", consent: true });
+
+    assert.equal((await c.del("/api/account")).status, 401, "needs password");
+    const res = await fetch(`${base}/api/account`, {
+      method: "DELETE",
+      headers: { "content-type": "application/json", cookie: c.cookieHeader() },
+      body: JSON.stringify({ password: "password1" }),
+    });
+    assert.equal(res.status, 200);
+    assert.equal(db.userByEmail("pat@example.com"), undefined);
+    assert.equal(db.countScansSince(userId, 0), 0);
+    assert.equal(db.listProjects(userId).length, 0);
+    assert.equal((await c.get("/api/me")).data.user, null, "signed out");
+    // The service request stays with the business, unlinked from the deleted account.
+    const [lead] = db.listLeads();
+    assert.equal(lead.name, "Pat");
+    assert.equal(lead.user_id, null);
+    assert.equal((await client(base).post("/api/login", { email: "pat@example.com", password: "password1" })).status, 401);
+  });
+});
+
+test("Pro members and the owner can't delete their account by accident", async () => {
+  const { app, db } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    const owner = await ownerClient(base);
+    const del = (c, password) =>
+      fetch(`${base}/api/account`, {
+        method: "DELETE",
+        headers: { "content-type": "application/json", cookie: c.cookieHeader() },
+        body: JSON.stringify({ password }),
+      });
+    assert.equal((await del(owner, "owner-pass")).status, 409);
+
+    const pro = client(base);
+    await pro.post("/api/signup", { email: "pro@example.com", password: "password1" });
+    db.setPlan(db.userByEmail("pro@example.com").id, "pro", "active");
+    const res = await del(pro, "password1");
+    assert.equal(res.status, 409);
+    assert.equal((await res.json()).code, "cancel_first");
+  });
+});
+
+// ---------- legal pages ----------
+
+test("privacy policy and terms are filled in from business settings", async () => {
+  const { app } = makeApp({ config: { ...SETUP, appUrl: "https://acme.example" } });
+  await withServer(app, async (base) => {
+    let privacy = await (await fetch(`${base}/privacy`)).text();
+    let terms = await (await fetch(`${base}/terms`)).text();
+    assert.match(privacy, /<h1>Privacy Policy<\/h1>/);
+    assert.match(privacy, /We don't save your photo/);
+    assert.match(privacy, /We do not sell your personal information/);
+    assert.match(terms, /DIY repairs are at your own risk/);
+    assert.ok(!terms.includes("Governing law"), "no state set yet");
+    assert.match(privacy, /<link rel="canonical" href="https:\/\/acme\.example\/privacy"/);
+
+    const owner = await ownerClient(base);
+    await owner.put("/api/admin/settings", {
+      businessName: "Acme Repair",
+      contactEmail: "help@acme.example",
+      phone: "512-555-0199",
+      governingState: "Texas",
+    });
+    privacy = await (await fetch(`${base}/privacy`)).text();
+    terms = await (await fetch(`${base}/terms`)).text();
+    assert.match(privacy, /Acme Repair \("we", "us"\)/);
+    assert.match(privacy, /mailto:help@acme\.example/);
+    assert.match(privacy, /tel:5125550199/);
+    assert.match(terms, /laws of the State of Texas/);
+    assert.match(terms, /\$4\.99\/month/);
+
+    // Linked from the app, the guide pages, and the sign-up form.
+    const shell = await (await fetch(`${base}/`)).text();
+    assert.match(shell, /href="\/privacy"/);
+    const guide = await (await fetch(`${base}/guides/dryer`)).text();
+    assert.match(guide, /href="\/privacy">Privacy<\/a> · <a href="\/terms">Terms/);
+  });
 });

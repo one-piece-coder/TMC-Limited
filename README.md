@@ -96,6 +96,18 @@ Each repair page has a search-style title ("How to Fix a Dryer That Won't Heat")
 
 New guides added to `public/data/catalog.js` get a page and a sitemap entry automatically. Give each one a `title` worded the way people search.
 
+## Email verification
+
+New accounts get a confirmation link by email, and photo scans unlock once it's clicked. That stops throwaway accounts from farming free scans. The link lasts 7 days and works once. "Send a new link" replaces it, limited to 3 per hour. A password reset also counts as confirming the email.
+
+Verification is only required when the site can send email (the same conditions as password reset). Accounts that existed before this feature are treated as confirmed.
+
+## Privacy Policy, Terms of Service and account deletion
+
+`/privacy` and `/terms` are rendered by `server/legal.js` from the business settings: name, contact email, phone, Pro price, and an optional governing-law state. They're linked from every footer, the sign-up form and the service-request form, and listed in the sitemap. The text matches what the app actually collects and which services it uses. If you change either, update the matching section and `LAST_UPDATED`. Have a lawyer review both before launch.
+
+Members can delete their account from the Account page, after confirming their password. Sessions, scans, projects and emailed links are removed with it (`ON DELETE CASCADE`). Service requests stay as business records, unlinked from the account. Pro members must cancel first, and the owner account can't be deleted.
+
 ## Password reset
 
 "Forgot your password?" on the sign-in page emails a reset link. The link works once and expires after an hour, and asking again cancels the previous one. Setting a new password signs the user out on every other device.
@@ -111,8 +123,7 @@ New guides added to `public/data/catalog.js` get a page and a sitemap entry auto
 
 ## Still needed before a public launch
 
-- Email verification at sign-up (the email sender from password reset can be reused for it).
-- Terms of Service and Privacy Policy pages, then a "you agree to..." line on sign-up.
+- A lawyer's review of the Privacy Policy and Terms of Service.
 - Run on one server process, or move rate limiting to a shared store like Redis before running several.
 
 ## Project layout

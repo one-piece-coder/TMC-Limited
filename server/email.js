@@ -40,3 +40,19 @@ If you didn't ask for this, ignore this email. Your password won't change.`;
 </div>`;
   return { to, subject: `Reset your ${businessName} password`, text, html };
 }
+
+export function verifyEmailMessage({ to, link, businessName = "FixIt Home" }) {
+  const text = `Welcome to ${businessName}!
+
+Confirm your email address to start scanning appliances with your camera:
+${link}
+
+The link works for 7 days. If you didn't create an account, ignore this email.`;
+  const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto;color:#1f1a17">
+  <h2 style="color:#e8590c">${escapeHtml(businessName)}</h2>
+  <p>Welcome! Confirm your email address to start scanning appliances with your camera.</p>
+  <p><a href="${escapeHtml(link)}" style="display:inline-block;background:#e8590c;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700">Confirm my email</a></p>
+  <p style="color:#6b625c;font-size:14px">The link works for 7 days. If you didn't create an account, ignore this email.</p>
+</div>`;
+  return { to, subject: `Confirm your email for ${businessName}`, text, html };
+}

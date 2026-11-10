@@ -38,6 +38,11 @@ CREATE TABLE IF NOT EXISTS leads (
   user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
 );
 CREATE INDEX IF NOT EXISTS leads_created ON leads(created_at);
+CREATE TABLE IF NOT EXISTS email_verifications (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS password_resets (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -72,6 +77,11 @@ export function openDatabase(file = process.env.DATABASE_PATH || "data/fixit.db"
 function migrate(db) {
   const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
   if (!userColumns.includes("role")) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
+  if (!userColumns.includes("email_verified_at")) {
+    db.exec("ALTER TABLE users ADD COLUMN email_verified_at INTEGER");
+    // Accounts created before verification existed keep working: treat them as verified.
+    db.exec("UPDATE users SET email_verified_at = created_at");
+  }
 }
 
 function createStore(db) {
@@ -96,6 +106,12 @@ function createStore(db) {
     resetByToken: q("SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > ?"),
     purgeResets: q("DELETE FROM password_resets WHERE expires_at <= ?"),
     setRole: q("UPDATE users SET role = ? WHERE id = ?"),
+    deleteUser: q("DELETE FROM users WHERE id = ?"),
+    markVerified: q("UPDATE users SET email_verified_at = ? WHERE id = ? AND email_verified_at IS NULL"),
+    deleteUserVerifications: q("DELETE FROM email_verifications WHERE user_id = ?"),
+    insertVerification: q("INSERT INTO email_verifications (token_hash, user_id, expires_at) VALUES (?, ?, ?)"),
+    verificationByToken: q("SELECT user_id FROM email_verifications WHERE token_hash = ? AND expires_at > ?"),
+    purgeVerifications: q("DELETE FROM email_verifications WHERE expires_at <= ?"),
     countOwners: q("SELECT COUNT(*) AS n FROM users WHERE role = 'owner'"),
     ownerEmails: q("SELECT email FROM users WHERE role = 'owner'"),
     countUsers: q("SELECT COUNT(*) AS n FROM users"),
@@ -109,6 +125,7 @@ function createStore(db) {
     listLeads: q("SELECT * FROM leads ORDER BY created_at DESC, id DESC LIMIT ?"),
     listLeadsByStatus: q("SELECT * FROM leads WHERE status = ? ORDER BY created_at DESC, id DESC LIMIT ?"),
     updateLead: q("UPDATE leads SET status = ?, notes = ? WHERE id = ?"),
+    deleteLead: q("DELETE FROM leads WHERE id = ?"),
     countLeadsSince: q("SELECT COUNT(*) AS n FROM leads WHERE created_at >= ?"),
     countLeadsByStatus: q("SELECT status, COUNT(*) AS n FROM leads GROUP BY status"),
     insertScan: q("INSERT INTO scans (user_id, created_at) VALUES (?, ?)"),
@@ -151,6 +168,8 @@ function createStore(db) {
       try {
         stmts.setPassword.run(passwordHash, userId);
         stmts.deleteUserResets.run(userId);
+        // Clicking a link sent to the address proves they own it.
+        stmts.markVerified.run(Date.now(), userId);
         stmts.deleteUserSessions.run(userId);
         db.exec("COMMIT");
       } catch (err) {
@@ -158,6 +177,22 @@ function createStore(db) {
         throw err;
       }
     },
+
+    // ---- email verification & account deletion ----
+    // Only the newest verification link works; sending another replaces it.
+    createEmailVerification(userId, tokenHash, expiresAt) {
+      stmts.purgeVerifications.run(Date.now());
+      stmts.deleteUserVerifications.run(userId);
+      stmts.insertVerification.run(tokenHash, userId, expiresAt);
+    },
+    verificationUserId: (tokenHash) => stmts.verificationByToken.get(tokenHash, Date.now())?.user_id ?? null,
+    markEmailVerified(userId) {
+      stmts.markVerified.run(Date.now(), userId);
+      stmts.deleteUserVerifications.run(userId);
+    },
+    // Sessions, scans, projects and links are removed with the user (ON DELETE CASCADE);
+    // service requests stay with the business, unlinked from the account.
+    deleteUser: (userId) => stmts.deleteUser.run(userId),
 
     // ---- owner / business ----
     setRole: (userId, role) => stmts.setRole.run(role, userId),
@@ -193,6 +228,7 @@ function createStore(db) {
     listLeads: ({ status, limit = 500 } = {}) =>
       status ? stmts.listLeadsByStatus.all(status, limit) : stmts.listLeads.all(limit),
     updateLead: (id, { status, notes }) => stmts.updateLead.run(status, notes, id),
+    deleteLead: (id) => stmts.deleteLead.run(id).changes > 0,
 
     // Records a scan and returns its id so it can be refunded if the scan fails.
     recordScan: (userId) => Number(stmts.insertScan.run(userId, Date.now()).lastInsertRowid),

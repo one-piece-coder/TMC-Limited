@@ -12,6 +12,7 @@ export const DEFAULT_SETTINGS = {
   services: "Appliance repair",
   bookingEnabled: true,
   leadEmail: "",
+  governingState: "",
 };
 
 const FIELDS = {
@@ -24,6 +25,7 @@ const FIELDS = {
   serviceArea: { max: 120 },
   services: { max: 160 },
   leadEmail: { max: 254, pattern: /^$|^[^\s@]+@[^\s@]+\.[^\s@]+$/, message: "Enter a valid email for job requests." },
+  governingState: { max: 40 },
 };
 
 // Returns { values } with only known, cleaned fields, or { error }.

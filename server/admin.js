@@ -33,6 +33,12 @@ export function setupChecklist({ config, settings, aiEnabled, billingEnabled, re
       help: "Add your phone number and service area in Business settings so customers can reach you.",
     },
     {
+      id: "privacyContact",
+      label: "Contact email for your Privacy Policy",
+      done: Boolean(settings.contactEmail),
+      help: "Add a public email in Business settings. Your Privacy Policy lists it so customers can send privacy requests, which privacy laws expect.",
+    },
+    {
       id: "appUrl",
       label: "Your web address",
       done: Boolean(config.appUrl),
@@ -72,7 +78,16 @@ export function setupChecklist({ config, settings, aiEnabled, billingEnabled, re
   ];
 }
 
-export function createAdminRouter({ db, config, isAiConfigured, billingEnabled, resetEnabled, onSettingsChanged, authLimiter }) {
+export function createAdminRouter({
+  db,
+  config,
+  isAiConfigured,
+  billingEnabled,
+  resetEnabled,
+  onSettingsChanged,
+  authLimiter,
+  onOwnerCreated = () => {},
+}) {
   const router = express.Router();
 
   // ---- first-time setup: claim the site with the setup code ----
@@ -94,6 +109,7 @@ export function createAdminRouter({ db, config, isAiConfigured, billingEnabled, 
       }
       db.setRole(user.id, "owner");
       startSession(db, res, user.id);
+      onOwnerCreated(req, db.userById(user.id));
       res.json({ ok: true });
     } catch (err) {
       next(err);
@@ -135,6 +151,12 @@ export function createAdminRouter({ db, config, isAiConfigured, billingEnabled, 
     db.updateLead(lead.id, { status, notes });
     const updated = db.leadById(lead.id);
     res.json({ lead: { ...updated, ...describeLead(updated) } });
+  });
+
+  // For a customer's deletion request, or spam.
+  router.delete("/admin/leads/:id", (req, res) => {
+    if (!db.deleteLead(Number(req.params.id))) return res.status(404).json({ error: "Request not found." });
+    res.json({ ok: true });
   });
 
   router.get("/admin/leads.csv", (_req, res) => {

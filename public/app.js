@@ -248,7 +248,7 @@ function render() {
     const active = a.dataset.nav === name || (a.dataset.nav === "browse" && ["appliance", "repair"].includes(name));
     a.classList.toggle("active", active);
   });
-  const views = { home, identify, browse, appliance, repair, saved, search, account, forgot, reset, book, setup, admin };
+  const views = { home, identify, browse, appliance, repair, saved, search, account, forgot, reset, book, setup, admin, verify };
   (views[name] || home)(...params);
 }
 
@@ -487,6 +487,64 @@ function saved() {
 
 // ---------- account ----------
 
+// ---------- email verification ----------
+
+const needsVerification = () => Boolean(user && config.verificationRequired && !user.emailVerified);
+
+function verifyBanner() {
+  return `<div class="notice warn verify-banner">
+    <strong>Confirm your email to start scanning.</strong> We sent a link to ${esc(user.email)}. Can't find it? Check your spam folder.
+    <div style="margin-top:8px;display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn small" type="button" data-resend>Send a new link</button><span class="muted" data-resend-msg aria-live="polite"></span></div>
+  </div>`;
+}
+
+function wireResend(root) {
+  root.querySelectorAll("[data-resend]").forEach((btn) =>
+    btn.addEventListener("click", async () => {
+      const note = root.querySelector("[data-resend-msg]");
+      btn.disabled = true;
+      try {
+        const res = await api("/api/email/resend", { method: "POST" });
+        if (res.alreadyVerified) {
+          await refreshUser();
+          return render();
+        }
+        note.textContent = `Sent! Check ${user.email}.`;
+      } catch (err) {
+        note.textContent = err.message;
+      } finally {
+        btn.disabled = false;
+      }
+    }),
+  );
+}
+
+let verifyToken = "";
+const verifyRequests = {};
+async function verify() {
+  verifyToken = currentRoute().query.get("token") || verifyToken;
+  // Keep the token out of the address bar and browser history once it's read.
+  history.replaceState(null, "", "#/verify");
+  if (!verifyToken) {
+    view.innerHTML = `<h1>Confirmation link missing</h1><p>Open the link from your email again, or <a href="#/account">send a new one from your account</a>.</p>`;
+    return;
+  }
+  view.innerHTML = `<h1>Confirming your email…</h1><div class="notice" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>One moment.</div>`;
+  // The page can redraw while this runs; links work once, so send each token only once.
+  verifyRequests[verifyToken] ||= api("/api/email/verify", { method: "POST", body: { token: verifyToken } }).then(() => refreshUser());
+  try {
+    await verifyRequests[verifyToken];
+    if (currentRoute().name !== "verify") return;
+    view.innerHTML = `<h1>Email confirmed ✓</h1>
+      <div class="notice ok">Thanks! ${user ? "You can now scan appliances with your camera." : "Sign in to start scanning appliances with your camera."}</div>
+      <p><a class="btn" href="${user ? "#/identify" : "#/account?mode=signin"}">${user ? "Scan an appliance" : "Sign in"}</a></p>`;
+  } catch (err) {
+    if (currentRoute().name !== "verify") return;
+    view.innerHTML = `<h1>That link didn't work</h1><div class="notice warn">${esc(err.message)}</div>
+      <p><a class="btn" href="#/account">Go to my account</a></p>`;
+  }
+}
+
 function account() {
   const { query } = currentRoute();
   if (!user) return authForm(query.get("mode") === "signin" ? "signin" : "signup");
@@ -500,6 +558,7 @@ function account() {
     <h1>Your account</h1>
     ${checkoutDone && !isPro ? `<div class="notice ok" id="checkout-wait" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Payment received. Activating Pro…</div>` : ""}
     ${checkoutDone && isPro ? `<div class="notice ok">🎉 Welcome to Pro! Thanks for supporting ${esc(brand().businessName)}.</div>` : ""}
+    ${needsVerification() ? verifyBanner() : ""}
     <div class="card stack" style="margin-top:12px">
       <div><strong>${esc(user.email)}</strong></div>
       <div>Plan: <span class="pill ${isPro ? "d1" : ""}">${isPro ? "Pro" : "Free"}</span></div>
@@ -516,7 +575,36 @@ function account() {
       </div>
       <div id="account-msg" aria-live="polite"></div>
     </div>
-    ${!isPro ? proPitch() : ""}`;
+    ${!isPro ? proPitch() : ""}
+    ${user.isOwner ? "" : `<details class="card danger-zone" style="margin-top:24px">
+      <summary><strong>Delete account</strong></summary>
+      <p>This permanently deletes your account, scan history and saved projects. ${isPro ? "<strong>Cancel your Pro membership first</strong> using Manage subscription above." : ""} It can't be undone. Any service requests you sent stay with ${esc(brand().businessName)} as business records. <a href="/privacy">Privacy Policy</a></p>
+      <form id="delete-form" class="stack" style="max-width:360px">
+        <label class="stack" style="gap:4px"><strong>Enter your password to confirm</strong><input type="password" name="password" autocomplete="current-password" required /></label>
+        <div><button class="btn danger" type="submit">Delete my account</button></div>
+        <div id="delete-msg" aria-live="polite"></div>
+      </form>
+    </details>`}
+    <p class="muted small-print" style="margin-top:16px"><a href="/privacy">Privacy Policy</a> · <a href="/terms">Terms of Service</a></p>`;
+
+  wireResend(view);
+  view.querySelector("#delete-form")?.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const form = e.target;
+    if (!confirm("Delete your account permanently? This can't be undone.")) return;
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    try {
+      await api("/api/account", { method: "DELETE", body: { password: form.password.value } });
+      user = null;
+      saveProjects({});
+      updateAccountNav();
+      view.innerHTML = `<h1>Your account was deleted</h1><div class="notice ok">Your account, scan history and saved projects have been removed.</div><p><a class="btn secondary" href="#/">Back to home</a></p>`;
+    } catch (err) {
+      form.querySelector("#delete-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      btn.disabled = false;
+    }
+  });
 
   const msg = view.querySelector("#account-msg");
   const redirect = (path) => async (e) => {
@@ -644,6 +732,7 @@ function authForm(mode) {
       ${!signup && config.passwordResetEnabled ? `<a href="#/forgot" style="justify-self:start">Forgot your password?</a>` : ""}
       <div id="auth-msg" aria-live="polite"></div>
       <p class="muted" style="margin:0">${signup ? `Already have an account? <a href="#/account?mode=signin">Sign in</a>` : `New here? <a href="#/account">Create a free account</a>`}</p>
+      ${signup ? `<p class="muted small-print" style="margin:0">By creating an account, you agree to our <a href="/terms" target="_blank">Terms of Service</a> and <a href="/privacy" target="_blank">Privacy Policy</a>.${config.verificationRequired ? " We'll email you a link to confirm your address." : ""}</p>` : ""}
     </form>`;
 
   const form = view.querySelector("#auth-form");
@@ -700,7 +789,7 @@ function book() {
       </label>
       <label class="hp" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
       <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="consent" required style="margin-top:5px" />
-        <span>${esc(b.businessName)} may contact me about this request by phone, text or email.</span></label>
+        <span>${esc(b.businessName)} may contact me about this request by phone, text or email. See our <a href="/privacy" target="_blank">Privacy Policy</a>.</span></label>
       <button class="btn" type="submit">Send request</button>
       <div id="book-msg" aria-live="polite"></div>
     </form>`;
@@ -847,6 +936,15 @@ async function adminJobs(panel, status) {
       save({ status: e.target.value }, note);
     });
     card.querySelector("[data-save-notes]").addEventListener("click", () => save({ notes: card.querySelector("textarea").value }, note));
+    card.querySelector("[data-delete-lead]").addEventListener("click", async () => {
+      if (!confirm("Delete this request permanently? Use this for spam, or when a customer asks you to delete their information.")) return;
+      try {
+        await api(`/api/admin/leads/${id}`, { method: "DELETE" });
+        card.remove();
+      } catch (err) {
+        note.textContent = err.message;
+      }
+    });
   });
 }
 
@@ -867,7 +965,7 @@ function leadCard(l) {
       <label class="stack" style="gap:4px"><span class="muted">Status</span>
         <select>${Object.entries(STATUS_LABEL).map(([v, t]) => `<option value="${v}" ${v === l.status ? "selected" : ""}>${t}</option>`).join("")}</select></label>
       <div class="stack" style="gap:4px"><span class="muted">Private notes</span><textarea rows="2" maxlength="2000" placeholder="e.g. Booked for Tue 10am, needs thermal fuse">${esc(l.notes)}</textarea>
-        <div style="display:flex;gap:8px;align-items:center"><button class="btn small secondary" data-save-notes type="button">Save notes</button><span class="muted save-note" aria-live="polite"></span></div></div>
+        <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap"><button class="btn small secondary" data-save-notes type="button">Save notes</button><button class="btn small secondary" data-delete-lead type="button">Delete</button><span class="muted save-note" aria-live="polite"></span></div></div>
     </div>
   </article>`;
 }
@@ -897,6 +995,9 @@ async function adminSettings(panel) {
       <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="bookingEnabled" ${s.bookingEnabled ? "checked" : ""} style="margin-top:5px" />
         <span><strong>Let customers request service online</strong><br><span class="muted">Adds “Request service” buttons to guides and scan results. Turn off to show only your phone number.</span></span></label>
       ${field("leadEmail", "Email new requests to", "Leave blank to use your public email, or your owner login email.", 'maxlength="254" inputmode="email"')}
+      <h3 style="margin:8px 0 0">Legal pages</h3>
+      <p class="muted" style="margin:0">Your <a href="/privacy" target="_blank">Privacy Policy</a> and <a href="/terms" target="_blank">Terms of Service</a> are filled in from these settings. Have a lawyer review them before you launch.</p>
+      ${field("governingState", "State whose laws apply", "e.g. Texas. Leave blank to leave this out of the Terms.", 'maxlength="40"')}
       <div><button class="btn" type="submit">Save settings</button></div>
       <div id="settings-msg" aria-live="polite"></div>
     </form>`;
@@ -949,7 +1050,7 @@ function identify() {
   view.innerHTML = `
     <h1>Identify your appliance</h1>
     <p class="muted">Take a clear photo of the whole appliance, or of its model/serial label for the best match.</p>
-    ${config.aiEnabled ? (user ? photoIdentifierHtml() : scanSignupHtml()) : `<div class="notice">Photo identification isn't enabled on this server yet. Use the guided identifier below.</div>`}
+    ${config.aiEnabled ? (!user ? scanSignupHtml() : needsVerification() ? verifyBanner() : photoIdentifierHtml()) : `<div class="notice">Photo identification isn't enabled on this server yet. Use the guided identifier below.</div>`}
     <h2>${config.aiEnabled ? "Or answer a quick question" : "Guided identifier"}</h2>
     <p>Where is it in your home?</p>
     <div class="chips" id="rooms">${[...new Set(CATALOG.map((a) => a.category))]
@@ -972,7 +1073,8 @@ function identify() {
   view.querySelectorAll("[data-after-login]").forEach((el) =>
     el.addEventListener("click", () => rememberAfterLogin("#/identify")),
   );
-  if (config.aiEnabled && user) wirePhotoIdentifier();
+  wireResend(view);
+  if (config.aiEnabled && user && !needsVerification()) wirePhotoIdentifier();
 }
 
 function scanSignupHtml() {
@@ -1070,6 +1172,9 @@ function wirePhotoIdentifier() {
     } catch (err) {
       if (err.code === "upgrade_required") {
         out.innerHTML = `<div class="notice warn">${esc(err.message)}</div>${proPitch()}${config.billingEnabled ? `<p><a class="btn" href="#/account">Upgrade to Pro · ${esc(config.proPriceLabel)}</a></p>` : ""}`;
+      } else if (err.code === "verify_email") {
+        user.emailVerified = false;
+        render();
       } else if (err.code === "auth_required") {
         user = null;
         updateAccountNav();

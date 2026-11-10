@@ -60,6 +60,7 @@ In **Dashboard → Business settings**:
 - **Phone, public email, service area, and what you fix.** These appear on every guide, with tap-to-call on phones.
 - **Online job requests:** on or off. Turn it off to show only your phone number.
 - **Email new requests to:** where job alerts go. If left blank, they go to your public email, or your owner login email.
+- **State whose laws apply:** used in your Terms of Service (e.g. "Texas"). Optional.
 
 Click **Save settings**. Changes appear right away.
 
@@ -79,6 +80,8 @@ Until you do this, the site uses its Render address, which works fine.
    - **EMAIL_FROM**: e.g. `Lone Star Appliance Repair <help@lonestarappliance.com>`
 
 Render restarts the app automatically. Check **Dashboard → Setup checklist**: "Email sending" should show ✓.
+
+Once email works, **new members must confirm their email address before they can scan**. That keeps people from making throwaway accounts to get extra free scans, which cost you money. Members who signed up before you turned email on aren't affected. Your own owner account gets a confirmation email too; click it so you can try scanning yourself.
 
 ## Step 6: Turn on photo identification
 
@@ -144,9 +147,22 @@ The guides live in one file: `public/data/catalog.js`. To edit them without any 
 
 New guides get their own Google-friendly page and sitemap entry automatically. Your own repair videos work too: put the 11-character YouTube video ID in `youtubeId` to embed it right in the guide.
 
+## Your Privacy Policy and Terms of Service
+
+The site includes both, at `/privacy` and `/terms`, linked from every page footer and the sign-up form. They're filled in automatically with your business name, public email, phone, Pro price and state. They describe what this app actually does:
+
+- what it stores, and that photos aren't saved
+- which companies process data: your host, Anthropic, Stripe, your email provider
+- the one sign-in cookie, and the affiliate links
+- how long data is kept, and how customers can delete their account
+
+Customers can **delete their account** themselves from their Account page. That removes their account, scan history and saved projects. Service requests stay in your dashboard as business records. If a customer asks you to delete their information, use **Delete** on their request in **Dashboard → Job requests**. Also delete them from any spreadsheets you downloaded. Delete spam requests the same way.
+
+**Have a lawyer review both pages before you launch.** They're a solid, honest starting point, not legal advice. Your lawyer may want changes for your state, your insurance, or how you run your business. To edit the wording, change `server/legal.js` the same way you'd edit guides (see below), and update the "last updated" date at the top of that file.
+
 ## Before you go live, check with a professional
 
-- **Terms of Service and Privacy Policy.** You collect customer contact details and photos. A local attorney or an online policy generator can help.
+- **Terms of Service and Privacy Policy.** See the section above. A local attorney should review them.
 - **Insurance.** Make sure your general liability policy covers publishing DIY repair advice.
 - **The guides.** Read through them, since they'll carry your business name. Change anything you'd do differently in your own work.
 
@@ -156,6 +172,7 @@ New guides get their own Google-friendly page and sitemap entry automatically. Y
 |---|---|
 | "That setup code isn't right" | Copy SETUP_CODE again from Render → Environment, with no spaces. |
 | Lost the owner password | Use "Forgot your password?" on the sign-in page (needs step 5). |
+| A customer says the confirmation email never came | Ask them to check spam, then tap "Send a new link" on their Account page. Check Render → Logs for "Couldn't send verification email". |
 | Checklist item stays ○ after adding a setting | Check for typos in the setting name. Render restarts automatically after a change; other hosts may need a manual restart. |
 | Job alert emails not arriving | Check your spam folder, check that your domain is verified with your email provider, and look in Render → Logs for "Couldn't email new lead". |
 | Members or requests disappeared after a restart | The disk isn't attached. On Render, the service needs a paid instance type with the disk from `render.yaml`. |

@@ -6,7 +6,7 @@ import Stripe from "stripe";
 import { aiConfigured, identifyAppliance, InputError, MODEL } from "./identify.js";
 import { openDatabase } from "./db.js";
 import { loadConfig } from "./config.js";
-import { createMailer, passwordResetEmail } from "./email.js";
+import { createMailer, passwordResetEmail, verifyEmailMessage } from "./email.js";
 import {
   endSession,
   hashPassword,
@@ -26,11 +26,13 @@ import { createGuidePages, renderNotFoundPage } from "./pages.js";
 import { brandCss, loadSettings, publicBrand } from "./business.js";
 import { leadEmail, validateLead } from "./leads.js";
 import { createAdminRouter } from "./admin.js";
+import { renderPrivacyPage, renderTermsPage } from "./legal.js";
 import fs from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const RESET_MINUTES = 60;
+const VERIFY_DAYS = 7;
 const PROJECT_KEY = /^[a-z0-9-]{1,60}\/[a-z0-9-]{1,80}$/;
 
 const esc = (s) =>
@@ -49,6 +51,13 @@ export function createApp({
   let settings = loadSettings(db);
   const getSettings = () => settings;
   const billingEnabled = Boolean(stripe && config.stripePriceId);
+  // Emailed links (password reset, email verification) need email sending, and in
+  // production APP_URL: building links from the Host header would let an attacker
+  // forge the header and get a victim's link pointed at their own site.
+  const resetEnabled = mailer.enabled && Boolean(config.appUrl || !config.production);
+  // Photo scans require a confirmed email whenever we're able to send the confirmation.
+  const verificationRequired = resetEnabled;
+  const siteUrl = (req) => config.appUrl || `${req.protocol}://${req.get("host")}`;
   app.disable("x-powered-by");
   app.set("trust proxy", config.trustProxy);
   app.use((_req, res, next) => {
@@ -73,6 +82,7 @@ export function createApp({
       plan: user.plan,
       hasBilling: Boolean(user.stripe_customer_id),
       isOwner: user.role === "owner",
+      emailVerified: Boolean(user.email_verified_at),
       usage: usageFor(db, user, config),
     };
 
@@ -86,6 +96,7 @@ export function createApp({
       proPriceLabel: config.proPriceLabel,
       retailers: config.retailers,
       passwordResetEnabled: resetEnabled,
+      verificationRequired,
       setupNeeded: db.ownerCount() === 0,
       brand: publicBrand(settings),
     });
@@ -110,7 +121,69 @@ export function createApp({
       }
       const user = db.createUser(creds.email, await hashPassword(creds.password));
       startSession(db, res, user.id);
+      sendVerification(req, user);
       res.status(201).json({ user: publicUser(user) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ---------- email verification ----------
+
+  function sendVerification(req, user) {
+    if (!verificationRequired || user.email_verified_at) return;
+    const token = newToken();
+    db.createEmailVerification(user.id, hashToken(token), Date.now() + VERIFY_DAYS * 86_400_000);
+    // The token sits after "#", so browsers never send it to servers or in Referer headers.
+    const link = `${siteUrl(req)}/#/verify?token=${token}`;
+    Promise.resolve(mailer.send(verifyEmailMessage({ to: user.email, link, businessName: settings.businessName }))).catch((err) =>
+      console.error("Couldn't send verification email:", err.message),
+    );
+  }
+
+  app.post("/api/email/verify", authLimiter, (req, res) => {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const userId = token ? db.verificationUserId(hashToken(token)) : null;
+    if (!userId) {
+      return res.status(400).json({ error: "This link is invalid or has expired. Sign in and send a new one.", code: "bad_token" });
+    }
+    db.markEmailVerified(userId);
+    res.json({ ok: true, user: req.user?.id === userId ? publicUser(db.userById(userId)) : null });
+  });
+
+  const resendLimiter = rateLimit({
+    windowMs: 60 * 60_000,
+    max: 3,
+    key: (req) => `resend:${req.user?.id ?? req.ip}`,
+    message: "We've sent a few emails already. Check your spam folder, or try again in an hour.",
+  });
+
+  app.post("/api/email/resend", requireUser, resendLimiter, (req, res) => {
+    if (req.user.email_verified_at) return res.json({ ok: true, alreadyVerified: true });
+    if (!verificationRequired) return res.status(503).json({ error: "Email isn't set up on this site yet." });
+    sendVerification(req, req.user);
+    res.json({ ok: true });
+  });
+
+  // ---------- delete account ----------
+
+  app.delete("/api/account", requireUser, authLimiter, async (req, res, next) => {
+    try {
+      if (!(await verifyPassword(String(req.body?.password ?? ""), req.user.password_hash))) {
+        return res.status(401).json({ error: "That password isn't right." });
+      }
+      if (req.user.role === "owner") {
+        return res.status(409).json({ error: "The owner account can't be deleted here, because the site would have no owner." });
+      }
+      if (req.user.plan === "pro") {
+        return res.status(409).json({
+          error: "Cancel your Pro membership first (Manage subscription), then delete your account.",
+          code: "cancel_first",
+        });
+      }
+      db.deleteUser(req.user.id);
+      endSession(db, req, res);
+      res.json({ ok: true });
     } catch (err) {
       next(err);
     }
@@ -134,9 +207,6 @@ export function createApp({
   // ---------- password reset ----------
 
   // Always answers the same way so the form can't be used to find out who has an account.
-  // In production the link must use APP_URL: building it from the Host header would let an
-  // attacker forge the header and get a victim's reset link pointed at their own site.
-  const resetEnabled = mailer.enabled && Boolean(config.appUrl || !config.production);
   const FORGOT_REPLY = { ok: true, message: "If that email has an account, we've sent a reset link. Check your inbox." };
 
   app.post("/api/password/forgot", authLimiter, (req, res) => {
@@ -239,6 +309,7 @@ export function createApp({
       billingEnabled,
       resetEnabled,
       authLimiter,
+      onOwnerCreated: sendVerification,
       onSettingsChanged: () => {
         settings = loadSettings(db);
       },
@@ -262,6 +333,12 @@ export function createApp({
     if (!isAiConfigured()) {
       return res.status(503).json({
         error: "Photo identification isn't set up on this server. Use the guided identifier instead.",
+      });
+    }
+    if (verificationRequired && !req.user.email_verified_at) {
+      return res.status(403).json({
+        error: `Confirm your email to start scanning. We sent a link to ${req.user.email}.`,
+        code: "verify_email",
       });
     }
     const usage = usageFor(db, req.user, config);
@@ -333,6 +410,10 @@ export function createApp({
     );
   });
 
+  app.get(["/privacy", "/terms"], (req, res) => {
+    const render = req.path === "/privacy" ? renderPrivacyPage : renderTermsPage;
+    res.set("Cache-Control", "public, max-age=300").type("html").send(render({ settings, origin: siteUrl(req), config }));
+  });
   app.use(createGuidePages({ config, getSettings }));
   app.use(express.static(PUBLIC_DIR, { index: false }));
   // The app itself uses #/ routes, so any other path really doesn't exist. A true 404

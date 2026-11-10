@@ -48,7 +48,7 @@ export function repairDescription(appliance, repair) {
 
 const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 
-function layout({ title, description, canonical, body, structuredData = [], settings = DEFAULT_SETTINGS }) {
+export function layout({ title, description, canonical, body, structuredData = [], settings = DEFAULT_SETTINGS, activeNav = "guides" }) {
   const SITE = esc(settings.businessName);
   const css = brandCss(settings.brandColor);
   const contact = [
@@ -80,14 +80,14 @@ function layout({ title, description, canonical, body, structuredData = [], sett
     <a href="/" class="brand"><span class="brand-mark">${esc(settings.logoEmoji)}</span> ${SITE}</a>
     <nav class="nav">
       <a href="/#/identify">Identify</a>
-      <a href="/guides" class="active">Repairs</a>
+      <a href="/guides"${activeNav === "guides" ? ' class="active"' : ""}>Repairs</a>
       <a href="/#/saved">My Projects</a>
       <a href="/#/account">Account</a>
     </nav>
   </header>
   <main>${body}</main>
   <footer class="footer">
-    <p><a href="/guides">All repair guides</a> · <a href="/#/identify">Identify an appliance from a photo</a></p>
+    <p><a href="/guides">All repair guides</a> · <a href="/#/identify">Identify an appliance from a photo</a> · <a href="/privacy">Privacy</a> · <a href="/terms">Terms</a></p>
     ${contact.length ? `<p>${contact.join(" · ")}</p>` : ""}
     <p>${SITE} provides general DIY guidance. Always follow your appliance's manual, turn off power, water and gas
       before working, and call a licensed professional when in doubt.</p>
@@ -288,7 +288,7 @@ export function renderNotFoundPage({ origin, settings = DEFAULT_SETTINGS }) {
 }
 
 export function renderSitemap(origin) {
-  const paths = ["/", "/guides", ...CATALOG.flatMap((a) => [guideUrl(a.id), ...a.repairs.map((r) => guideUrl(a.id, r.id))])];
+  const paths = ["/", "/guides", "/privacy", "/terms", ...CATALOG.flatMap((a) => [guideUrl(a.id), ...a.repairs.map((r) => guideUrl(a.id, r.id))])];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
 ${paths.map((p) => `  <url><loc>${esc(origin + p)}</loc></url>`).join("\n")}
