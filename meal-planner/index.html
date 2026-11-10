@@ -18,6 +18,7 @@
     </div>
     <div class="top-actions">
       <button id="btn-generate" class="primary">✨ Generate meals</button>
+      <button id="btn-grocery">🛒 Grocery list</button>
       <button id="btn-library">📖 Meal library</button>
       <button id="btn-more" aria-label="More options">⋯</button>
     </div>
@@ -83,7 +84,24 @@
       <fieldset>
         <legend>Options</legend>
         <label class="check"><input type="checkbox" name="onlyEmpty" checked /> Only fill empty slots (keep what I've planned)</label>
-        <label class="check"><input type="checkbox" name="vegetarian" /> Vegetarian only</label>
+        <div class="opt-row">
+          <label class="inline">Diet
+            <select name="diet">
+              <option value="any">Any</option>
+              <option value="vegetarian">Vegetarian 🥦</option>
+              <option value="vegan">Vegan 🌱</option>
+              <option value="pescatarian">Pescatarian (vegetarian + fish)</option>
+            </select>
+          </label>
+          <label class="inline">Fish &amp; seafood
+            <select name="fish">
+              <option value="any">Any meals</option>
+              <option value="only">Fish dishes only 🐟</option>
+              <option value="none">No fish</option>
+            </select>
+          </label>
+        </div>
+        <label class="check"><input type="checkbox" name="lowCal" /> Low calorie 🪶 (about 450 kcal or less per meal)</label>
         <label class="check"><input type="checkbox" name="quick" /> Quick meals only (≤ 30 min)</label>
         <label class="inline">Don't repeat a meal within
           <input type="number" name="noRepeat" min="0" max="30" value="5" /> days
@@ -108,13 +126,24 @@
     </div>
     <p class="muted">The generator picks from these meals. Add your own favorites!</p>
     <form id="form-add-meal" class="add-meal">
-      <input name="name" required placeholder="New meal name" autocomplete="off" />
-      <label class="check"><input type="checkbox" name="type" value="breakfast" /> B</label>
-      <label class="check"><input type="checkbox" name="type" value="lunch" /> L</label>
-      <label class="check"><input type="checkbox" name="type" value="dinner" checked /> D</label>
-      <label class="check" title="Vegetarian"><input type="checkbox" name="veg" /> 🥦</label>
-      <label class="check" title="Quick (≤ 30 min)"><input type="checkbox" name="quick" /> ⚡</label>
-      <button class="primary">Add</button>
+      <input name="name" id="meal-name" required placeholder="Meal name" autocomplete="off" aria-label="Meal name" />
+      <input name="ingredients" id="meal-ingredients" placeholder="Ingredients, separated by commas (for the grocery list)" autocomplete="off" aria-label="Ingredients" />
+      <div class="add-meal-row">
+        <label class="check"><input type="checkbox" name="type" value="breakfast" /> Breakfast</label>
+        <label class="check"><input type="checkbox" name="type" value="lunch" /> Lunch</label>
+        <label class="check"><input type="checkbox" name="type" value="dinner" checked /> Dinner</label>
+      </div>
+      <div class="add-meal-row">
+        <label class="check"><input type="checkbox" name="veg" /> 🥦 Vegetarian</label>
+        <label class="check"><input type="checkbox" name="vegan" /> 🌱 Vegan</label>
+        <label class="check"><input type="checkbox" name="fish" /> 🐟 Fish</label>
+        <label class="check"><input type="checkbox" name="quick" /> ⚡ Quick</label>
+        <label class="inline kcal-field">~<input type="number" name="kcal" id="meal-kcal" min="0" max="5000" step="10" placeholder="kcal" aria-label="Calories per serving" /> kcal</label>
+      </div>
+      <div class="add-meal-row">
+        <button class="primary" id="meal-form-submit">Add meal</button>
+        <button type="button" id="meal-form-cancel" hidden>Cancel edit</button>
+      </div>
     </form>
     <div class="lib-filter">
       <input id="lib-search" type="search" placeholder="Search meals…" />
@@ -124,8 +153,48 @@
         <option value="lunch">Lunch</option>
         <option value="dinner">Dinner</option>
       </select>
+      <select id="lib-tag" aria-label="Filter by diet">
+        <option value="">Any diet</option>
+        <option value="veg">🥦 Vegetarian</option>
+        <option value="vegan">🌱 Vegan</option>
+        <option value="fish">🐟 Fish dishes</option>
+        <option value="nofish">No fish</option>
+        <option value="lowcal">🪶 Low calorie</option>
+        <option value="quick">⚡ Quick</option>
+      </select>
     </div>
+    <p class="muted legend">🥦 vegetarian · 🌱 vegan · 🐟 fish · ⚡ quick · 🪶 low calorie (≤ 450 kcal). Calories are rough estimates per serving.</p>
     <ul id="lib-list" class="lib-list"></ul>
+  </dialog>
+
+  <!-- Grocery list -->
+  <dialog id="dlg-grocery" class="wide">
+    <div class="lib-head">
+      <h3>🛒 Grocery list</h3>
+      <button type="button" class="close" data-close aria-label="Close">✕</button>
+    </div>
+    <div class="gro-controls">
+      <div class="seg" role="group" aria-label="Build list from">
+        <button type="button" data-gro-range="day">This day</button>
+        <button type="button" data-gro-range="week">This week</button>
+        <button type="button" data-gro-range="custom">Custom</button>
+      </div>
+      <div class="gro-custom" hidden>
+        <input type="date" id="gro-from" aria-label="From" /> to <input type="date" id="gro-to" aria-label="To" />
+      </div>
+    </div>
+    <p id="gro-summary" class="muted"></p>
+    <div class="gro-actions">
+      <button type="button" id="gro-copy">📋 Copy list</button>
+      <button type="button" id="gro-uncheck">Uncheck all</button>
+    </div>
+    <textarea id="gro-text" rows="8" hidden aria-label="Grocery list text"></textarea>
+    <div id="gro-list" class="gro-list"></div>
+    <div id="gro-missing" class="gro-missing"></div>
+    <form id="gro-add" class="gro-add">
+      <input id="gro-extra" placeholder="Add something else (e.g. paper towels)" autocomplete="off" aria-label="Extra item" />
+      <button>Add</button>
+    </form>
   </dialog>
 
   <!-- More menu -->

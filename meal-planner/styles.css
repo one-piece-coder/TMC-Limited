@@ -66,6 +66,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -300,9 +301,49 @@ legend { font-weight: 600; padding: 0 0.3rem; }
 .lib-head { display: flex; justify-content: space-between; align-items: center; }
 .lib-head h3 { margin: 0; }
 .close { border: none; background: transparent; font-size: 1.1rem; }
-.add-meal { display: flex; flex-wrap: wrap; gap: 0.4rem; align-items: center; }
-.add-meal input[name=name] { flex: 1 1 200px; }
-.add-meal label.check { margin: 0; }
+.add-meal { display: grid; gap: 0.45rem; margin-top: 0.6rem; padding: 0.7rem; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+.add-meal input[name=name], .add-meal input[name=ingredients] { width: 100%; }
+.add-meal-row { display: flex; flex-wrap: wrap; gap: 0.35rem 0.9rem; align-items: center; }
+dialog .add-meal label.check { margin: 0; }
+dialog label.kcal-field { margin: 0; gap: 0.3rem; }
+dialog label.kcal-field input { width: 5.5rem; }
+.legend { font-size: 0.8rem; margin: 0.2rem 0 0.5rem; }
+.lib-list li .n { min-width: 0; }
+.lib-list .ing { display: block; color: var(--muted); font-size: 0.78rem; overflow-wrap: anywhere; }
+.lib-list .kc { color: var(--muted); font-size: 0.78rem; white-space: nowrap; }
+
+.opt-row { display: flex; flex-wrap: wrap; gap: 0 1rem; }
+dialog .opt-row label.inline { margin: 0.4rem 0; }
+.day-kcal { text-align: center; margin: 0; }
+.wk-kcal { font-size: 0.78rem; color: var(--muted); text-align: right; padding: 0 0.2rem; font-variant-numeric: tabular-nums; }
+@media (max-width: 900px) { .wk-kcal { grid-column: 1 / -1; } }
+
+/* Grocery list */
+.gro-controls { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; margin-top: 0.6rem; }
+.seg { display: inline-flex; background: var(--surface-2); border-radius: 10px; padding: 3px; }
+.seg button { border: none; background: transparent; border-radius: 8px; padding: 0.35rem 0.75rem; }
+.seg button.active { background: var(--surface); box-shadow: var(--shadow); font-weight: 600; }
+.gro-custom { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+#gro-summary { margin: 0.6rem 0 0.4rem; font-size: 0.9rem; }
+.gro-actions { display: flex; gap: 0.5rem; flex-wrap: wrap; }
+#gro-text { width: 100%; margin-top: 0.5rem; font: inherit; font-size: 0.85rem; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 0.5rem; }
+.gro-list { max-height: 52vh; overflow-y: auto; margin-top: 0.6rem; display: grid; gap: 0.8rem; }
+.gro-aisle h4 { margin: 0 0 0.25rem; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.06em; color: var(--accent); }
+.gro-aisle ul { list-style: none; margin: 0; padding: 0; }
+.gro-aisle li { display: flex; align-items: flex-start; gap: 0.4rem; border-bottom: 1px solid var(--border); }
+dialog .gro-aisle li label { display: flex; align-items: flex-start; gap: 0.55rem; margin: 0; padding: 0.4rem 0.1rem; flex: 1; min-width: 0; cursor: pointer; }
+.gro-aisle li input { margin-top: 0.2rem; accent-color: var(--accent); }
+.gi { min-width: 0; }
+.gn { font-weight: 500; }
+.gc { margin-left: 0.4rem; font-size: 0.78rem; font-weight: 700; color: var(--accent); font-variant-numeric: tabular-nums; }
+.gi small { display: block; color: var(--muted); font-size: 0.76rem; overflow-wrap: anywhere; }
+.gro-aisle li.done .gn { text-decoration: line-through; color: var(--muted); }
+.gro-x { border: none; background: transparent; padding: 0.35rem 0.5rem; color: var(--muted); }
+.gro-empty { color: var(--muted); margin: 0.5rem 0; }
+.gro-missing p { font-size: 0.85rem; margin: 0.8rem 0 0; color: var(--warn); }
+.linkish { border: none; background: none; padding: 0; color: var(--accent); text-decoration: underline; cursor: pointer; font: inherit; }
+.gro-add { display: flex; gap: 0.5rem; margin-top: 0.8rem; }
+.gro-add input { flex: 1; min-width: 0; }
 .lib-filter { display: flex; gap: 0.5rem; margin: 0.8rem 0 0.4rem; }
 .lib-filter input { flex: 1; }
 .lib-list { list-style: none; padding: 0; margin: 0; max-height: 50vh; overflow-y: auto; border-top: 1px solid var(--border); }

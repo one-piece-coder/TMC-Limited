@@ -15,11 +15,15 @@ To rebuild the single-file hosted version after changing the code: `python3 buil
 - **Meal generator** (✨ Generate meals) — fill a day, week, month, or custom date range automatically:
   - only fill empty slots (keeps what you already planned) or regenerate everything
   - pick which meals to generate (breakfast / lunch / dinner)
-  - vegetarian-only and quick-meals-only (≤ 30 min) filters
+  - diet: any, vegetarian, vegan, or pescatarian
+  - fish & seafood: any, fish dishes only, or no fish
+  - low calorie (about 450 kcal or less per meal) and quick meals (≤ 30 min)
   - "don't repeat a meal within N days"
   - optional "dinner leftovers become tomorrow's lunch"
-- **Meal library** — 70 starter meals; add your own favorites (tag them as breakfast/lunch/dinner, vegetarian, quick) and the generator will use them.
+- **Grocery list** (🛒) — built from the meals planned for a day, a week, or a custom range. Ingredients are grouped by store aisle, show how many meals need them (×3) and which ones, and can be checked off as you shop. Add extra items, and copy the list to paste into a note or text. Leftover meals are skipped.
+- **Calories** — every starter meal has a rough calorie estimate; the day and week views show daily totals.
+- **Meal library** — 100 starter meals, including fish, vegan and low-calorie options, each with ingredients. Add or edit your own (meal times, vegetarian/vegan/fish/quick tags, calories, ingredients) and the generator and grocery list will use them.
 - **🎲 Surprise me** in the meal editor picks a random meal for just that slot.
 - **Backup** — export/import your plan and library as JSON (⋯ menu). Choose Sunday or Monday week start.
 
-Keyboard shortcuts: `←` / `→` previous/next, `t` today, `d` / `w` / `m` switch view, `g` open the generator.
+Keyboard shortcuts: `←` / `→` previous/next, `t` today, `d` / `w` / `m` switch view, `g` open the generator, `l` open the grocery list.
