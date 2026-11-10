@@ -1,8 +1,13 @@
-# Meal Planner
+# Plate Planner
 
 A simple, no-install meal planner for breakfast, lunch, and dinner.
 
-Open `index.html` in any browser — that's it. Your plan is saved automatically in the browser (localStorage).
+## Using it
+
+- **Shared link (hosted):** the planner is published as a claude.ai artifact. Anyone you share the link with gets their **own private plan**, saved to their account so it follows them across devices. People who can't save to an account (signed out, view-only access, or outside your organization) can still use it; their plan is kept in their browser.
+- **Locally:** open `index.html` in any browser. Your plan is saved in that browser (localStorage).
+
+To rebuild the single-file hosted version after changing the code: `python3 build-artifact.py out.html`.
 
 ## Features
 

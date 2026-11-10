@@ -106,6 +106,25 @@ const state = {
   library: [],
 };
 
+/*
+ * Storage. Two modes:
+ *  - "local": the plan lives in this browser's localStorage (opening index.html directly).
+ *  - "cloud": when the page is hosted as a claude.ai artifact and the viewer is signed in,
+ *    each person's plan is saved privately to their own account (db: data/users/<id>/...),
+ *    so everyone who opens the shared link gets their own planner that follows them across devices.
+ *    Docs: "settings" {library, weekStart} and one "m-YYYY-MM" doc per month {days}.
+ */
+const store = {
+  mode: 'local',
+  col: null,
+  loaded: false,
+  written: new Map(), // docId -> JSON last confirmed in the cloud
+  timer: null,
+  flushing: false,
+  again: false,
+  hadLocalData: false,
+};
+
 function load() {
   try {
     const raw = JSON.parse(localStorage.getItem(STORE_KEY) || 'null');
@@ -114,13 +133,14 @@ function load() {
       state.library = Array.isArray(raw.library) ? raw.library : buildDefaultLibrary();
       state.weekStart = raw.weekStart === 1 ? 1 : 0;
       if (['day', 'week', 'month'].includes(raw.view)) state.view = raw.view;
+      store.hadLocalData = true;
       return;
     }
   } catch (e) { /* storage blocked or corrupt — fall through to defaults */ }
   state.library = buildDefaultLibrary();
 }
 
-function save() {
+function saveLocal() {
   try {
     localStorage.setItem(STORE_KEY, JSON.stringify({
       plans: state.plans,
@@ -128,9 +148,153 @@ function save() {
       weekStart: state.weekStart,
       view: state.view,
     }));
+    return true;
   } catch (e) {
+    return false;
+  }
+}
+
+function save() {
+  if (store.mode === 'cloud') {
+    // Remember the view locally (a per-browser convenience); data goes to the account.
+    clearTimeout(store.timer);
+    store.timer = setTimeout(flush, 500);
+    setStatus('saving');
+  } else if (!saveLocal()) {
     toast('Could not save — browser storage is unavailable');
   }
+}
+
+function docsFromState() {
+  const docs = { settings: { library: state.library, weekStart: state.weekStart } };
+  for (const [k, v] of Object.entries(state.plans)) {
+    const id = 'm-' + k.slice(0, 7);
+    (docs[id] = docs[id] || { days: {} }).days[k] = v;
+  }
+  // Months emptied locally still need writing so the cloud copy is cleared too.
+  for (const id of store.written.keys()) if (!docs[id]) docs[id] = { days: {} };
+  return docs;
+}
+
+async function flush() {
+  if (store.mode !== 'cloud') return;
+  if (store.flushing) { store.again = true; return; }
+  store.flushing = true;
+  try {
+    for (const [id, body] of Object.entries(docsFromState())) {
+      const json = JSON.stringify(body);
+      if (store.written.get(id) === json) continue;
+      try {
+        await store.col.doc(id).set(body);
+      } catch (e) {
+        if (e?.code !== 'unavailable') throw e;
+        await new Promise((r) => setTimeout(r, 800 + Math.random() * 800));
+        await store.col.doc(id).set(body);
+      }
+      store.written.set(id, json);
+    }
+    setStatus('cloud');
+  } catch (e) {
+    if (e?.code === 'quota_exceeded') {
+      setStatus('error');
+      toast('Your saved plan is full. Erase old months from the ⋯ menu to keep saving.');
+    } else if (e?.code === 'invalid_argument' || e?.code === 'revoked' || e?.code === 'not_granted') {
+      // This viewer can't write to account storage (e.g. view-only access): keep working in this browser.
+      goLocal('This link is view-only for saving, so your plan is kept in this browser.');
+    } else {
+      setStatus('error');
+      toast('Could not save your plan. Check your connection; it will retry on your next change.');
+    }
+  }
+  store.flushing = false;
+  if (store.again) { store.again = false; flush(); }
+}
+
+function goLocal(msg) {
+  store.mode = 'local';
+  saveLocal();
+  setStatus('local');
+  if (msg) toast(msg);
+}
+
+function applyRemote(snap) {
+  const local = docsFromState();
+  const isDirty = (id) => store.written.has(id) && JSON.stringify(local[id]) !== store.written.get(id);
+
+  if (!store.loaded) {
+    if (snap.empty) {
+      if (snap.metadata.fromCache) return; // wait for the store's definitive answer
+      // First visit with this account: keep whatever is on screen (local data or a sample week).
+      store.loaded = true;
+      if (!store.hadLocalData) seedSampleWeek();
+      flush();
+      return;
+    }
+    store.loaded = true;
+    state.plans = {};
+  }
+
+  let changed = false;
+  for (const d of snap.docs) {
+    const json = JSON.stringify(d.data());
+    if (store.written.get(d.id) === json || isDirty(d.id)) continue;
+    const body = JSON.parse(json);
+    store.written.set(d.id, json);
+    changed = true;
+    if (d.id === 'settings') {
+      if (Array.isArray(body.library)) state.library = body.library;
+      state.weekStart = body.weekStart === 1 ? 1 : 0;
+    } else if (d.id.startsWith('m-')) {
+      const month = d.id.slice(2);
+      for (const k of Object.keys(state.plans)) if (k.startsWith(month)) delete state.plans[k];
+      Object.assign(state.plans, body.days || {});
+    }
+  }
+  if (!snap.metadata.fromCache && !snap.metadata.hasPendingWrites && !store.timer && !store.flushing) setStatus('cloud');
+  if (changed) render();
+}
+
+async function connectCloud() {
+  const c = window.claude;
+  if (!c || typeof c.use !== 'function') return false;
+  setStatus('loading');
+  const [db, user] = await Promise.all([c.use('db'), c.use('user')]);
+  const uid = db && user ? await user.id() : null;
+  if (!uid) return false;
+  store.col = db.collection('data/users/' + uid);
+  store.mode = 'cloud';
+  const slow = setTimeout(() => { if (!store.loaded) setStatus('slow'); }, 10000);
+  store.col.onSnapshot((snap) => {
+    if (!snap.metadata.fromCache) clearTimeout(slow);
+    applyRemote(snap);
+  }, () => {
+    clearTimeout(slow);
+    goLocal(store.loaded ? 'Lost connection to your saved plan; changes are now kept in this browser.' : null);
+  });
+  return true;
+}
+
+const STATUS_TEXT = {
+  loading: ['Loading your plan…', 'busy'],
+  slow: ["Can't reach your saved plan yet", 'warn'],
+  saving: ['Saving…', 'busy'],
+  cloud: ['Saved to your account', 'ok'],
+  local: ['Saved in this browser', 'ok'],
+  error: ['Not saved', 'warn'],
+};
+function setStatus(kind) {
+  const el = document.getElementById('save-status');
+  if (!el) return;
+  if (kind === 'cloud' || kind === 'error') store.timer = null;
+  const [text, tone] = STATUS_TEXT[kind];
+  el.textContent = text;
+  el.dataset.tone = tone;
+}
+
+function seedSampleWeek() {
+  const [from, to] = currentRange('week');
+  generate({ from, to, slots: SLOTS, onlyEmpty: true, noRepeat: 5, quiet: true });
+  toast('Here’s a sample week to start. Tap any meal to change it.');
 }
 
 /* ---------------- Date helpers ---------------- */
@@ -275,7 +439,7 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
  *   both existing plans and meals chosen during this run).
  * - Falls back to the least-recently-used option if the library is too small.
  */
-function generate({ from, to, slots, onlyEmpty = true, veg = false, quick = false, noRepeat = 5, leftovers = false }) {
+function generate({ from, to, slots, onlyEmpty = true, veg = false, quick = false, noRepeat = 5, leftovers = false, quiet = false }) {
   const pool = state.library.filter((m) => (!veg || m.veg) && (!quick || m.quick));
   let count = 0;
   const missing = new Set();
@@ -339,6 +503,7 @@ function generate({ from, to, slots, onlyEmpty = true, veg = false, quick = fals
   }
   save();
   render();
+  if (quiet) return;
   let msg = count ? `Generated ${count} meal${count === 1 ? '' : 's'} ✨` : 'Nothing to fill — all slots already planned';
   if (missing.size) msg += ` (no ${[...missing].join('/')} options match your filters)`;
   toast(msg);
@@ -448,14 +613,14 @@ dlgGen.addEventListener('close', () => {
     leftovers: formGen.leftovers.checked,
   });
 });
-$('#gen-clear').addEventListener('click', () => {
+$('#gen-clear').addEventListener('click', async () => {
   const r = genRange();
   const slots = genSlots();
   if (!r || !slots.length) return;
-  if (!confirm('Clear the selected meals in this range?')) return;
-  clearRange(r[0], r[1], slots);
   dlgGen.close();
-  toast('Cleared');
+  if (!(await ask('Clear the selected meals in this range?', 'Clear meals'))) return;
+  clearRange(r[0], r[1], slots);
+  toast('Meals cleared');
 });
 
 /* ---------------- Library dialog ---------------- */
@@ -506,11 +671,24 @@ $('#opt-weekstart').addEventListener('change', (e) => {
   state.weekStart = Number(e.target.value);
   save(); render();
 });
-$('#btn-export').addEventListener('click', () => {
-  const blob = new Blob([JSON.stringify({ plans: state.plans, library: state.library, weekStart: state.weekStart }, null, 2)], { type: 'application/json' });
+$('#btn-export').addEventListener('click', async () => {
+  const json = JSON.stringify({ plans: state.plans, library: state.library, weekStart: state.weekStart }, null, 2);
+  const filename = `meal-plan-${key(new Date())}.json`;
+  if (window.claude?.use) {
+    const dl = await window.claude.use('downloads');
+    if (dl) {
+      try { await dl.save({ filename, data: json }); } catch (e) {
+        if (e?.code !== 'declined') toast('Could not save the backup file here.');
+      }
+    } else {
+      toast('Backups can’t be downloaded in this view.');
+    }
+    return;
+  }
+  const blob = new Blob([json], { type: 'application/json' });
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `meal-plan-${key(new Date())}.json`;
+  a.download = filename;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 });
@@ -531,17 +709,18 @@ $('#file-import').addEventListener('change', async (e) => {
   }
   e.target.value = '';
 });
-$('#btn-reset-lib').addEventListener('click', () => {
-  if (!confirm('Replace your meal library with the default meals? Your planned meals are kept.')) return;
+$('#btn-reset-lib').addEventListener('click', async () => {
+  dlgMore.close();
+  if (!(await ask('Replace your meal library with the default meals? Your planned meals are kept.', 'Restore defaults'))) return;
   state.library = buildDefaultLibrary();
   save();
   toast('Default library restored');
 });
-$('#btn-wipe').addEventListener('click', () => {
-  if (!confirm('Erase every planned meal? This cannot be undone.')) return;
+$('#btn-wipe').addEventListener('click', async () => {
+  dlgMore.close();
+  if (!(await ask('Erase every planned meal? This cannot be undone.', 'Erase all'))) return;
   state.plans = {};
   save(); render();
-  dlgMore.close();
   toast('All planned meals erased');
 });
 
@@ -593,5 +772,23 @@ function toast(msg) {
   toastTimer = setTimeout(() => t.classList.remove('show'), 3200);
 }
 
+/* In-page confirmation (native confirm() is blocked when hosted) */
+function ask(message, okLabel = 'OK') {
+  const dlg = $('#dlg-confirm');
+  $('#confirm-msg').textContent = message;
+  $('#confirm-ok').textContent = okLabel;
+  dlg.returnValue = '';
+  dlg.showModal();
+  return new Promise((resolve) => dlg.addEventListener('close', () => resolve(dlg.returnValue === 'ok'), { once: true }));
+}
+
 load();
 render();
+setStatus('local');
+connectCloud().then((ok) => {
+  if (!ok) {
+    store.mode = 'local';
+    setStatus('local');
+    if (!store.hadLocalData) { seedSampleWeek(); saveLocal(); }
+  }
+});

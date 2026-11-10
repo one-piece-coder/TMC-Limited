@@ -3,12 +3,14 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Meal Planner</title>
+  <title>Plate Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=Inter:wght@400;500;600;700&display=swap" />
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
   <header class="topbar">
-    <h1>🍽️ Meal Planner</h1>
+    <h1>🍽️ Plate Planner</h1>
     <div class="view-switch" role="tablist" aria-label="View">
       <button data-view="day" role="tab">Day</button>
       <button data-view="week" role="tab">Week</button>
@@ -27,6 +29,7 @@
     <button id="btn-next" aria-label="Next">›</button>
     <h2 id="period-title"></h2>
     <span id="period-stats" class="muted"></span>
+    <span id="save-status" class="save-status" data-tone="ok" aria-live="polite"></span>
   </nav>
 
   <main id="view"></main>
@@ -143,6 +146,18 @@
       <button id="btn-reset-lib">↺ Restore default meal library</button>
       <button id="btn-wipe" class="danger">🗑️ Erase all planned meals</button>
     </div>
+  </dialog>
+
+  <!-- Confirmation -->
+  <dialog id="dlg-confirm">
+    <form method="dialog">
+      <p id="confirm-msg"></p>
+      <div class="dlg-actions">
+        <span class="spacer"></span>
+        <button value="cancel">Cancel</button>
+        <button value="ok" id="confirm-ok" class="primary danger-fill">OK</button>
+      </div>
+    </form>
   </dialog>
 
   <div id="toast" role="status" aria-live="polite"></div>
