@@ -17,6 +17,27 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+  key TEXT PRIMARY KEY,
+  value TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS leads (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  created_at INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  phone TEXT NOT NULL,
+  email TEXT NOT NULL DEFAULT '',
+  zip TEXT NOT NULL DEFAULT '',
+  appliance_id TEXT NOT NULL DEFAULT '',
+  repair_id TEXT NOT NULL DEFAULT '',
+  message TEXT NOT NULL DEFAULT '',
+  preferred_time TEXT NOT NULL DEFAULT '',
+  source TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'new',
+  notes TEXT NOT NULL DEFAULT '',
+  user_id INTEGER REFERENCES users(id) ON DELETE SET NULL
+);
+CREATE INDEX IF NOT EXISTS leads_created ON leads(created_at);
 CREATE TABLE IF NOT EXISTS password_resets (
   token_hash TEXT PRIMARY KEY,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -43,7 +64,14 @@ export function openDatabase(file = process.env.DATABASE_PATH || "data/fixit.db"
   const db = new DatabaseSync(file);
   db.exec("PRAGMA journal_mode = WAL; PRAGMA foreign_keys = ON;");
   db.exec(SCHEMA);
+  migrate(db);
   return createStore(db);
+}
+
+// Adds columns introduced after the first release to existing databases.
+function migrate(db) {
+  const userColumns = db.prepare("PRAGMA table_info(users)").all().map((c) => c.name);
+  if (!userColumns.includes("role")) db.exec("ALTER TABLE users ADD COLUMN role TEXT NOT NULL DEFAULT 'user'");
 }
 
 function createStore(db) {
@@ -67,6 +95,22 @@ function createStore(db) {
     insertReset: q("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)"),
     resetByToken: q("SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > ?"),
     purgeResets: q("DELETE FROM password_resets WHERE expires_at <= ?"),
+    setRole: q("UPDATE users SET role = ? WHERE id = ?"),
+    countOwners: q("SELECT COUNT(*) AS n FROM users WHERE role = 'owner'"),
+    ownerEmails: q("SELECT email FROM users WHERE role = 'owner'"),
+    countUsers: q("SELECT COUNT(*) AS n FROM users"),
+    countPro: q("SELECT COUNT(*) AS n FROM users WHERE plan = 'pro'"),
+    countAllScans: q("SELECT COUNT(*) AS n FROM scans WHERE created_at >= ?"),
+    allSettings: q("SELECT key, value FROM settings"),
+    upsertSetting: q("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value"),
+    insertLead: q(`INSERT INTO leads (created_at, name, phone, email, zip, appliance_id, repair_id, message, preferred_time, source, user_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`),
+    leadById: q("SELECT * FROM leads WHERE id = ?"),
+    listLeads: q("SELECT * FROM leads ORDER BY created_at DESC, id DESC LIMIT ?"),
+    listLeadsByStatus: q("SELECT * FROM leads WHERE status = ? ORDER BY created_at DESC, id DESC LIMIT ?"),
+    updateLead: q("UPDATE leads SET status = ?, notes = ? WHERE id = ?"),
+    countLeadsSince: q("SELECT COUNT(*) AS n FROM leads WHERE created_at >= ?"),
+    countLeadsByStatus: q("SELECT status, COUNT(*) AS n FROM leads GROUP BY status"),
     insertScan: q("INSERT INTO scans (user_id, created_at) VALUES (?, ?)"),
     deleteScan: q("DELETE FROM scans WHERE id = ?"),
     countScans: q("SELECT COUNT(*) AS n FROM scans WHERE user_id = ? AND created_at >= ?"),
@@ -114,6 +158,41 @@ function createStore(db) {
         throw err;
       }
     },
+
+    // ---- owner / business ----
+    setRole: (userId, role) => stmts.setRole.run(role, userId),
+    ownerCount: () => stmts.countOwners.get().n,
+    ownerEmails: () => stmts.ownerEmails.all().map((r) => r.email),
+    stats(since) {
+      return {
+        users: stmts.countUsers.get().n,
+        proSubscribers: stmts.countPro.get().n,
+        scansThisMonth: stmts.countAllScans.get(since).n,
+        leadsThisMonth: stmts.countLeadsSince.get(since).n,
+        leadsByStatus: Object.fromEntries(stmts.countLeadsByStatus.all().map((r) => [r.status, r.n])),
+      };
+    },
+    getSettings: () => Object.fromEntries(stmts.allSettings.all().map((r) => [r.key, JSON.parse(r.value)])),
+    saveSettings(values) {
+      db.exec("BEGIN");
+      try {
+        for (const [k, v] of Object.entries(values)) stmts.upsertSetting.run(k, JSON.stringify(v));
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    },
+    createLead(l) {
+      const { lastInsertRowid } = stmts.insertLead.run(
+        Date.now(), l.name, l.phone, l.email, l.zip, l.applianceId, l.repairId, l.message, l.preferredTime, l.source, l.userId ?? null,
+      );
+      return stmts.leadById.get(lastInsertRowid);
+    },
+    leadById: (id) => stmts.leadById.get(id),
+    listLeads: ({ status, limit = 500 } = {}) =>
+      status ? stmts.listLeadsByStatus.all(status, limit) : stmts.listLeads.all(limit),
+    updateLead: (id, { status, notes }) => stmts.updateLead.run(status, notes, id),
 
     // Records a scan and returns its id so it can be refunded if the scan fails.
     recordScan: (userId) => Number(stmts.insertScan.run(userId, Date.now()).lastInsertRowid),

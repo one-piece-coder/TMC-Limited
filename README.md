@@ -1,6 +1,10 @@
 # FixIt Home
 
-A DIY home-repair web app for homeowners. It can:
+A DIY home-repair web app, built so a repair business can run it under its own brand.
+
+> **Business owners: start with the [Owner's Guide](OWNER_GUIDE.md).** It walks through going live, claiming the site, branding it, and turning on each feature, with no coding.
+
+It can:
 
 - **Identify appliances from a photo.** Snap or upload a picture and Claude (vision) names the appliance, reads the brand and model number when they're legible, and tells you where to find the model label.
 - **Suggest repairs.** Describe the problem and get matching step-by-step guides from the built-in catalog, plus extra AI suggestions for problems the catalog doesn't cover, with flags for when to call a pro.
@@ -8,6 +12,9 @@ A DIY home-repair web app for homeowners. It can:
 - **Track projects.** Users check off steps as they go. Signed-in users get their projects synced across devices.
 - **Accounts and Pro subscriptions.** Free accounts get 3 photo scans a month. Pro (Stripe subscription) raises that to 100.
 - **Earn from parts.** Every part and tool in a guide links to retailer search results. When the user's model number is known, from a scan or typed in, it's added to the search so results fit. Links carry your affiliate tags.
+
+- **Send jobs to the business that owns it.** Every guide, appliance page and scan result offers "Request service" and tap-to-call. Requests go to an owner dashboard and to the owner's email.
+- **Run under the owner's brand.** Name, tagline, logo, color, phone, service area and services are set in the dashboard. No code changes needed.
 
 Guides, the guided identifier, and video links are free and need no account. Photo scans require an account, so nobody can run up your Claude bill anonymously.
 
@@ -43,6 +50,23 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 | `DATABASE_PATH` | SQLite file (default `data/fixit.db`). Put it on a persistent disk and back it up. |
 | `TRUST_PROXY` | Set to `1` behind one reverse proxy/load balancer so rate limits see real client IPs |
 | `NODE_ENV=production` | Marks login cookies `Secure` (HTTPS only) |
+| `SETUP_CODE` | One-time code to claim the site as owner at `/#/setup`. If unset, a random code is printed in the server log at startup. |
+
+## Owner features
+
+- **First-time setup:** `/#/setup` with the setup code creates the owner account. An existing account can be made owner only with its password. Setup closes once an owner exists.
+- **Dashboard** (`/#/admin`, owners only):
+  - Stats: new requests, requests this month, members, Pro subscribers, scans with estimated AI cost.
+  - **Job requests:** filter by status, tap to call or email, change status, add private notes, download a CSV.
+  - **Business settings:** name, tagline, logo, brand color, phone, email, service area, services, booking on/off, where to email requests.
+  - **Setup checklist:** shows which integrations are connected, plus a database backup download.
+- **Branding:** applied to the app, guide pages, search listings (including local-business data), the install manifest and emails. Text uses of the brand color are adjusted to meet WCAG AA contrast.
+- **Job requests:** rate limited, require contact consent, and have a hidden spam trap. Each request records which guide the customer was reading.
+
+## Deploying
+
+- **Render:** `render.yaml` is a Blueprint (New → Blueprint). It creates the service with a 1 GB disk at `/data`, a generated `SETUP_CODE`, a health check, and prompts for the optional keys. `RENDER_EXTERNAL_URL` is used as `APP_URL` until a custom domain is set.
+- **Anywhere else:** the `Dockerfile` runs as a non-root user with a volume at `/data`, and includes a health check at `/healthz`.
 
 ## Setting up Stripe
 
@@ -106,6 +130,9 @@ New guides added to `public/data/catalog.js` get a page and a sitemap entry auto
 | `server/db.js` | SQLite storage: users, sessions, scans, projects |
 | `server/rateLimit.js` | In-memory rate limiter |
 | `server/pages.js` | Search-friendly guide pages, sitemap and robots.txt |
+| `server/business.js` | Business settings, validation, brand color CSS |
+| `server/leads.js` | Service-request validation, owner email, CSV export |
+| `server/admin.js` | Owner setup, dashboard API, setup checklist, backups |
 | `server/config.js` | Environment configuration |
 | `test/` | `node --test` suite |
 

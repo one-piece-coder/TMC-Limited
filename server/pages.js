@@ -12,8 +12,7 @@ import {
   youtubeSearchUrl,
 } from "../public/data/catalog.js";
 import { cleanItemName, partQuery, shopLinks } from "../public/data/parts.js";
-
-const SITE = "FixIt Home";
+import { DEFAULT_SETTINGS, brandCss, telHref } from "./business.js";
 const DIFFICULTY = { 1: "Easy", 2: "Moderate", 3: "Advanced" };
 
 const esc = (s) =>
@@ -49,7 +48,13 @@ export function repairDescription(appliance, repair) {
 
 const lowerFirst = (s) => s.charAt(0).toLowerCase() + s.slice(1);
 
-function layout({ title, description, canonical, body, structuredData = [] }) {
+function layout({ title, description, canonical, body, structuredData = [], settings = DEFAULT_SETTINGS }) {
+  const SITE = esc(settings.businessName);
+  const css = brandCss(settings.brandColor);
+  const contact = [
+    settings.phone && `<a href="${telHref(settings.phone)}">📞 ${esc(settings.phone)}</a>`,
+    settings.serviceArea && `Serving ${esc(settings.serviceArea)}`,
+  ].filter(Boolean);
   return `<!doctype html>
 <html lang="en">
 <head>
@@ -64,14 +69,15 @@ function layout({ title, description, canonical, body, structuredData = [] }) {
   <meta property="og:description" content="${esc(description)}" />
   <meta property="og:url" content="${esc(canonical)}" />
   <meta name="twitter:card" content="summary" />
-  <meta name="theme-color" content="#e8590c" />
+  <meta name="theme-color" content="${esc(settings.brandColor)}" />
   <link rel="manifest" href="/manifest.webmanifest" />
   <link rel="stylesheet" href="/styles.css" />
-  ${structuredData.map(jsonLd).join("\n  ")}
+  ${css ? `<style id="brand-css">${css}</style>` : ""}
+  ${[...structuredData, localBusinessData(settings, canonical)].filter(Boolean).map(jsonLd).join("\n  ")}
 </head>
 <body>
   <header class="topbar">
-    <a href="/" class="brand"><span class="brand-mark">🔧</span> ${SITE}</a>
+    <a href="/" class="brand"><span class="brand-mark">${esc(settings.logoEmoji)}</span> ${SITE}</a>
     <nav class="nav">
       <a href="/#/identify">Identify</a>
       <a href="/guides" class="active">Repairs</a>
@@ -82,11 +88,27 @@ function layout({ title, description, canonical, body, structuredData = [] }) {
   <main>${body}</main>
   <footer class="footer">
     <p><a href="/guides">All repair guides</a> · <a href="/#/identify">Identify an appliance from a photo</a></p>
+    ${contact.length ? `<p>${contact.join(" · ")}</p>` : ""}
     <p>${SITE} provides general DIY guidance. Always follow your appliance's manual, turn off power, water and gas
       before working, and call a licensed professional when in doubt.</p>
   </footer>
 </body>
 </html>`;
+}
+
+// Lets search engines show the business (name, phone, area) for local repair searches.
+function localBusinessData(settings, canonical) {
+  if (!settings.phone) return null;
+  return {
+    "@context": "https://schema.org",
+    "@type": "HomeAndConstructionBusiness",
+    name: settings.businessName,
+    telephone: settings.phone,
+    ...(settings.contactEmail && { email: settings.contactEmail }),
+    ...(settings.serviceArea && { areaServed: settings.serviceArea }),
+    ...(settings.services && { description: settings.services }),
+    url: new URL("/", canonical).href,
+  };
 }
 
 const breadcrumbData = (origin, items) => ({
@@ -106,6 +128,20 @@ function metaPills(r) {
 
 function guideLink(a, r) {
   return `<a class="card repair-item" href="${guideUrl(a.id, r.id)}"><div><h3>${esc(r.title)}</h3><div class="muted">${esc(r.symptom)}</div>${metaPills(r)}</div><span aria-hidden="true">›</span></a>`;
+}
+
+// "Rather have a pro do it?" box pointing at the business that owns the site.
+function proBox(settings, { applianceId = "", repairId = "", heading = "Rather have a pro fix it?" } = {}) {
+  if (!settings.bookingEnabled && !settings.phone) return "";
+  const params = new URLSearchParams({ ...(applianceId && { appliance: applianceId }), ...(repairId && { repair: repairId }) });
+  return `<section class="card pro-card book-box">
+    <h2 class="card-heading">🧑‍🔧 ${esc(heading)}</h2>
+    <p style="margin:0">${esc(settings.businessName)}${settings.serviceArea ? ` serves ${esc(settings.serviceArea)}` : " can help"}${settings.services ? `: ${esc(settings.services.charAt(0).toLowerCase() + settings.services.slice(1))}` : ""}.</p>
+    <div class="guide-cta" style="margin-top:12px">
+      ${settings.bookingEnabled ? `<a class="btn" href="/#/book?${params}">Request service</a>` : ""}
+      ${settings.phone ? `<a class="btn secondary" href="${telHref(settings.phone)}">📞 Call ${esc(settings.phone)}</a>` : ""}
+    </div>
+  </section>`;
 }
 
 function videoHtml(v) {
@@ -129,7 +165,7 @@ function shopList(items, retailers, { parts = false } = {}) {
     .join("")}</ul>`;
 }
 
-export function renderRepairPage({ appliance: a, repair: r, origin, retailers }) {
+export function renderRepairPage({ appliance: a, repair: r, origin, retailers, settings = DEFAULT_SETTINGS }) {
   const path = guideUrl(a.id, r.id);
   const crumbs = [["Repair guides", "/guides"], [`${a.name} repair`, guideUrl(a.id)], [r.title, path]];
   const description = repairDescription(a, r);
@@ -171,6 +207,7 @@ export function renderRepairPage({ appliance: a, repair: r, origin, retailers })
       <ol class="steps">${r.steps.map((s) => `<li><span>${esc(s)}</span></li>`).join("")}</ol>
 
       ${r.proSignals.length ? `<h2>When to call a pro</h2><div class="notice"><ul>${r.proSignals.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>` : ""}
+      <div style="margin-top:16px">${proBox(settings, { applianceId: a.id, repairId: r.id })}</div>
 
       <h2>Video tutorials</h2>
       <div class="list">${r.videos.map(videoHtml).join("")}</div>
@@ -179,15 +216,16 @@ export function renderRepairPage({ appliance: a, repair: r, origin, retailers })
     </article>`;
 
   return layout({
-    title: `${r.title} | ${SITE}`,
+    title: `${r.title} | ${settings.businessName}`,
     description,
     canonical: origin + path,
     body,
     structuredData: [howTo, breadcrumbData(origin, crumbs)],
+    settings,
   });
 }
 
-export function renderAppliancePage({ appliance: a, origin }) {
+export function renderAppliancePage({ appliance: a, origin, settings = DEFAULT_SETTINGS }) {
   const path = guideUrl(a.id);
   const crumbs = [["Repair guides", "/guides"], [`${a.name} repair`, path]];
   const description = clip(
@@ -201,17 +239,19 @@ export function renderAppliancePage({ appliance: a, origin }) {
     <div class="notice warn" style="margin-top:16px"><strong>Before you start</strong><ul>${a.hazards.map((h) => `<li>${esc(HAZARD_TEXT[h])}</li>`).join("")}</ul></div>
     <h2>Finding your model number</h2>
     <ul>${a.identifyHints.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
-    <div class="guide-cta"><a class="btn" href="/#/identify">Scan your ${esc(a.name.toLowerCase())} with a photo</a></div>`;
+    <div class="guide-cta"><a class="btn" href="/#/identify">Scan your ${esc(a.name.toLowerCase())} with a photo</a></div>
+    <div style="margin-top:20px">${proBox(settings, { applianceId: a.id, heading: `Need ${a.name.toLowerCase()} repair?` })}</div>`;
   return layout({
-    title: `${a.name} Repair: DIY Fixes & Guides | ${SITE}`,
+    title: `${a.name} Repair: DIY Fixes & Guides | ${settings.businessName}`,
     description,
     canonical: origin + path,
     body,
     structuredData: [breadcrumbData(origin, crumbs)],
+    settings,
   });
 }
 
-export function renderIndexPage({ origin }) {
+export function renderIndexPage({ origin, settings = DEFAULT_SETTINGS }) {
   const categories = [...new Set(CATALOG.map((a) => a.category))];
   const total = CATALOG.reduce((n, a) => n + a.repairs.length, 0);
   const body = `
@@ -229,16 +269,18 @@ export function renderIndexPage({ origin }) {
       )
       .join("")}`;
   return layout({
-    title: `DIY Appliance Repair Guides | ${SITE}`,
+    settings,
+    title: `DIY Appliance Repair Guides | ${settings.businessName}`,
     description: clip(`Free step-by-step DIY repair guides for refrigerators, dishwashers, washers, dryers, water heaters, furnaces, AC and more. Tools, parts and videos for each fix.`),
     canonical: `${origin}/guides`,
     body,
   });
 }
 
-export function renderNotFoundPage({ origin }) {
+export function renderNotFoundPage({ origin, settings = DEFAULT_SETTINGS }) {
   return layout({
-    title: `Page not found | ${SITE}`,
+    settings,
+    title: `Page not found | ${settings.businessName}`,
     description: "This page doesn't exist.",
     canonical: `${origin}/guides`,
     body: `<h1>Page not found</h1><p>We couldn't find that page. Try the <a href="/guides">repair guides</a> or the <a href="/">home page</a>.</p>`,
@@ -254,27 +296,27 @@ ${paths.map((p) => `  <url><loc>${esc(origin + p)}</loc></url>`).join("\n")}
 `;
 }
 
-export function createGuidePages({ config }) {
+export function createGuidePages({ config, getSettings = () => DEFAULT_SETTINGS }) {
   const router = express.Router();
   // Use APP_URL when set, so canonical links and the sitemap never depend on the Host header.
   const origin = (req) => config.appUrl || `${req.protocol}://${req.get("host")}`;
   const send = (res, html, status = 200) => {
-    res.status(status).set("Cache-Control", status === 200 ? "public, max-age=3600" : "no-store").type("html").send(html);
+    res.status(status).set("Cache-Control", status === 200 ? "public, max-age=300" : "no-store").type("html").send(html);
   };
 
-  router.get("/guides", (req, res) => send(res, renderIndexPage({ origin: origin(req) })));
+  router.get("/guides", (req, res) => send(res, renderIndexPage({ origin: origin(req), settings: getSettings() })));
 
   router.get("/guides/:applianceId", (req, res) => {
     const appliance = findAppliance(req.params.applianceId);
-    if (!appliance) return send(res, renderNotFoundPage({ origin: origin(req) }), 404);
-    send(res, renderAppliancePage({ appliance, origin: origin(req) }));
+    if (!appliance) return send(res, renderNotFoundPage({ origin: origin(req), settings: getSettings() }), 404);
+    send(res, renderAppliancePage({ appliance, origin: origin(req), settings: getSettings() }));
   });
 
   router.get("/guides/:applianceId/:repairId", (req, res) => {
     const appliance = findAppliance(req.params.applianceId);
     const repair = findRepair(req.params.applianceId, req.params.repairId);
-    if (!appliance || !repair) return send(res, renderNotFoundPage({ origin: origin(req) }), 404);
-    send(res, renderRepairPage({ appliance, repair, origin: origin(req), retailers: config.retailers }));
+    if (!appliance || !repair) return send(res, renderNotFoundPage({ origin: origin(req), settings: getSettings() }), 404);
+    send(res, renderRepairPage({ appliance, repair, origin: origin(req), retailers: config.retailers, settings: getSettings() }));
   });
 
   router.get("/sitemap.xml", (req, res) => {

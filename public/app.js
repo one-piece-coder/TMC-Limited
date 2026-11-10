@@ -16,6 +16,7 @@ const DIFFICULTY = { 1: "Easy", 2: "Moderate", 3: "Advanced" };
 
 let config = { aiEnabled: false, billingEnabled: false, freeScansPerMonth: 3, retailers: FALLBACK_RETAILERS };
 let user = null;
+let userLoaded = false; // true once we know whether someone is signed in
 
 // ---------- API ----------
 
@@ -41,6 +42,7 @@ async function refreshUser() {
   } catch {
     user = null;
   }
+  userLoaded = true;
   updateAccountNav();
   return user;
 }
@@ -48,6 +50,52 @@ async function refreshUser() {
 function updateAccountNav() {
   const link = document.querySelector('[data-nav="account"]');
   if (link) link.textContent = user ? (user.plan === "pro" ? "Account · Pro" : "Account") : "Sign in";
+  // Owners get a Dashboard link in the menu.
+  let dash = document.querySelector('[data-nav="admin"]');
+  if (user?.isOwner && !dash) {
+    dash = Object.assign(document.createElement("a"), { href: "#/admin", textContent: "Dashboard" });
+    dash.dataset.nav = "admin";
+    link?.before(dash);
+  } else if (!user?.isOwner && dash) dash.remove();
+}
+
+// ---------- the business that owns this site ----------
+
+const DEFAULT_BRAND = { businessName: "FixIt Home", tagline: "DIY home repair, made simple", logoEmoji: "🔧", bookingEnabled: true };
+const brand = () => ({ ...DEFAULT_BRAND, ...(config.brand || {}) });
+const telHref = (phone) => `tel:${String(phone).replace(/[^0-9+]/g, "")}`;
+const canBook = () => brand().bookingEnabled || Boolean(brand().phone);
+
+function applyBrand() {
+  const b = brand();
+  document.querySelectorAll("[data-brand-name]").forEach((el) => (el.textContent = b.businessName));
+  const mark = document.querySelector(".brand-mark");
+  if (mark) mark.textContent = b.logoEmoji;
+  const contact = document.getElementById("footer-contact");
+  if (contact) {
+    contact.innerHTML = [
+      b.phone && `<a href="${telHref(b.phone)}">📞 ${esc(b.phone)}</a>`,
+      b.contactEmail && `<a href="mailto:${esc(b.contactEmail)}">${esc(b.contactEmail)}</a>`,
+      b.serviceArea && `Serving ${esc(b.serviceArea)}`,
+    ]
+      .filter(Boolean)
+      .join(" · ");
+  }
+}
+
+// "Rather have a pro fix it?" box that sends work to the business.
+function proBox({ applianceId = "", repairId = "", heading = "Rather have a pro fix it?" } = {}) {
+  if (!canBook()) return "";
+  const b = brand();
+  const params = new URLSearchParams({ ...(applianceId && { appliance: applianceId }), ...(repairId && { repair: repairId }) });
+  return `<section class="card pro-card book-box">
+    <h3>🧑‍🔧 ${esc(heading)}</h3>
+    <p style="margin:0">${esc(b.businessName)}${b.serviceArea ? ` serves ${esc(b.serviceArea)}` : " can help"}${b.services ? `: ${esc(b.services.charAt(0).toLowerCase() + b.services.slice(1))}` : ""}.</p>
+    <div class="guide-cta" style="margin-top:12px">
+      ${b.bookingEnabled ? `<a class="btn" href="#/book?${params}">Request service</a>` : ""}
+      ${b.phone ? `<a class="btn secondary" href="${telHref(b.phone)}">📞 Call ${esc(b.phone)}</a>` : ""}
+    </div>
+  </section>`;
 }
 
 // ---------- helpers ----------
@@ -200,7 +248,7 @@ function render() {
     const active = a.dataset.nav === name || (a.dataset.nav === "browse" && ["appliance", "repair"].includes(name));
     a.classList.toggle("active", active);
   });
-  const views = { home, identify, browse, appliance, repair, saved, search, account, forgot, reset };
+  const views = { home, identify, browse, appliance, repair, saved, search, account, forgot, reset, book, setup, admin };
   (views[name] || home)(...params);
 }
 
@@ -225,7 +273,7 @@ function home() {
   view.innerHTML = `
     <section class="hero hero-bold">
       <div class="hero-art" aria-hidden="true">🔧🪛🧰</div>
-      <p class="eyebrow">DIY home repair, made simple</p>
+      <p class="eyebrow">${esc(brand().tagline)}</p>
       <h1>Fix it yourself. Save the service call.</h1>
       <p>Snap a photo to identify your appliance, get repair suggestions matched to the problem, and follow along with video tutorials.</p>
       <form class="search" id="home-search" role="search">
@@ -252,6 +300,8 @@ function home() {
         (a) => `<a class="tile tone-${CATEGORY_TONE[a.category] || "orange"}" href="#/appliance/${a.id}"><span class="tile-icon">${a.icon}</span><span>${esc(a.name)}</span></a>`,
       ).join("")}
     </div>
+
+    ${canBook() ? `<div style="margin-top:24px">${proBox({ heading: "Rather have a pro do it?" })}</div>` : ""}
 
     <h2>Popular quick fixes</h2>
     <div class="list">
@@ -311,7 +361,8 @@ function appliance(id) {
     <h2>What's going wrong?</h2>
     <div class="list">${a.repairs.map((r) => repairCard(a, r)).join("")}</div>
     <h2>Finding your model number</h2>
-    <ul>${a.identifyHints.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>`;
+    <ul>${a.identifyHints.map((h) => `<li>${esc(h)}</li>`).join("")}</ul>
+    <div style="margin-top:20px">${proBox({ applianceId: a.id, heading: `Need ${a.name.toLowerCase()} repair?` })}</div>`;
 }
 
 function repair(applianceId, repairId) {
@@ -358,6 +409,7 @@ function repair(applianceId, repairId) {
       .join("")}</ol>
 
     ${r.proSignals.length ? `<h2>Call a pro if…</h2><div class="notice"><ul>${r.proSignals.map((p) => `<li>${esc(p)}</li>`).join("")}</ul></div>` : ""}
+    <div style="margin-top:16px">${proBox({ applianceId: a.id, repairId: r.id })}</div>
 
     <h2 id="videos">Video tutorials</h2>
     <div class="list">${r.videos.map(videoBlock).join("")}</div>`;
@@ -447,7 +499,7 @@ function account() {
   view.innerHTML = `
     <h1>Your account</h1>
     ${checkoutDone && !isPro ? `<div class="notice ok" id="checkout-wait" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Payment received. Activating Pro…</div>` : ""}
-    ${checkoutDone && isPro ? `<div class="notice ok">🎉 Welcome to Pro! Thanks for supporting FixIt Home.</div>` : ""}
+    ${checkoutDone && isPro ? `<div class="notice ok">🎉 Welcome to Pro! Thanks for supporting ${esc(brand().businessName)}.</div>` : ""}
     <div class="card stack" style="margin-top:12px">
       <div><strong>${esc(user.email)}</strong></div>
       <div>Plan: <span class="pill ${isPro ? "d1" : ""}">${isPro ? "Pro" : "Free"}</span></div>
@@ -459,6 +511,7 @@ function account() {
       <div style="display:flex;gap:8px;flex-wrap:wrap">
         ${!isPro && config.billingEnabled ? `<button class="btn" id="upgrade-btn">Upgrade to Pro · ${esc(config.proPriceLabel)}</button>` : ""}
         ${user.hasBilling && config.billingEnabled ? `<button class="btn secondary" id="portal-btn">Manage subscription</button>` : ""}
+        ${user.isOwner ? `<a class="btn secondary" href="#/admin">Owner dashboard</a>` : ""}
         <button class="btn secondary" id="logout-btn">Sign out</button>
       </div>
       <div id="account-msg" aria-live="polite"></div>
@@ -500,7 +553,7 @@ function account() {
 
 function proPitch() {
   return `<div class="card pro-card" style="margin-top:16px">
-    <h3>⭐ FixIt Pro</h3>
+    <h3>⭐ ${esc(brand().businessName)} Pro</h3>
     <ul>
       <li><strong>${esc(config.proScansPerMonth)} photo scans a month</strong> instead of ${esc(config.freeScansPerMonth)}</li>
       <li>Scan every appliance in the house, not just the one that broke</li>
@@ -612,6 +665,278 @@ function authForm(mode) {
       btn.disabled = false;
     }
   });
+}
+
+// ---------- request service (leads for the business) ----------
+
+function book() {
+  const b = brand();
+  const { query } = currentRoute();
+  const a = findAppliance(query.get("appliance") || "");
+  const r = a ? findRepair(a.id, query.get("repair") || "") : null;
+  if (!b.bookingEnabled) {
+    view.innerHTML = `<h1>Get a pro</h1>${b.phone ? `<p>Call ${esc(b.businessName)} to book a repair.</p><a class="btn" href="${telHref(b.phone)}">📞 Call ${esc(b.phone)}</a>` : `<p class="muted">Online booking isn't available right now.</p>`}`;
+    return;
+  }
+  view.innerHTML = `
+    <h1>Request service from ${esc(b.businessName)}</h1>
+    <p class="lead">${b.serviceArea ? `We serve ${esc(b.serviceArea)}. ` : ""}Tell us what's wrong and we'll get back to you to schedule a visit.</p>
+    ${b.phone ? `<p>In a hurry? <a href="${telHref(b.phone)}"><strong>📞 Call ${esc(b.phone)}</strong></a></p>` : ""}
+    <form class="card stack" id="book-form" style="max-width:560px" novalidate>
+      <div class="two-col" style="gap:12px">
+        <label class="stack" style="gap:4px"><strong>Your name</strong><input type="text" name="name" autocomplete="name" required maxlength="80" /></label>
+        <label class="stack" style="gap:4px"><strong>Phone</strong><input type="text" name="phone" inputmode="tel" autocomplete="tel" required maxlength="30" /></label>
+        <label class="stack" style="gap:4px"><strong>Email</strong> <input type="text" name="email" inputmode="email" autocomplete="email" maxlength="254" placeholder="Optional" /></label>
+        <label class="stack" style="gap:4px"><strong>ZIP code</strong><input type="text" name="zip" inputmode="numeric" autocomplete="postal-code" maxlength="12" /></label>
+      </div>
+      <label class="stack" style="gap:4px"><strong>Appliance</strong>
+        <select name="applianceId"><option value="">Something else</option>${CATALOG.map((x) => `<option value="${x.id}" ${x === a ? "selected" : ""}>${esc(x.name)}</option>`).join("")}</select>
+      </label>
+      <label class="stack" style="gap:4px"><strong>What's going on?</strong>
+        <textarea name="message" maxlength="2000" placeholder="e.g. Dryer runs but doesn't heat. Started last week.">${r ? esc(`${r.symptom}. `) : ""}</textarea>
+      </label>
+      <label class="stack" style="gap:4px"><strong>Best time to reach you</strong>
+        <select name="preferredTime"><option>Any time</option><option>Morning</option><option>Afternoon</option><option>Evening</option></select>
+      </label>
+      <label class="hp" aria-hidden="true">Website <input type="text" name="website" tabindex="-1" autocomplete="off" /></label>
+      <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="consent" required style="margin-top:5px" />
+        <span>${esc(b.businessName)} may contact me about this request by phone, text or email.</span></label>
+      <button class="btn" type="submit">Send request</button>
+      <div id="book-msg" aria-live="polite"></div>
+    </form>`;
+
+  const form = view.querySelector("#book-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector('button[type="submit"]');
+    btn.disabled = true;
+    const data = Object.fromEntries(new FormData(form));
+    try {
+      await api("/api/leads", {
+        method: "POST",
+        body: { ...data, consent: form.consent.checked, repairId: r?.id || "", source: r ? `guide:${a.id}/${r.id}` : a ? `appliance:${a.id}` : "app" },
+      });
+      view.innerHTML = `<h1>Request sent ✓</h1>
+        <div class="notice ok">Thanks, ${esc(data.name)}! ${esc(b.businessName)} will contact you soon at ${esc(data.phone)}.</div>
+        ${b.phone ? `<p>Need us sooner? <a href="${telHref(b.phone)}">📞 Call ${esc(b.phone)}</a></p>` : ""}
+        <p><a class="btn secondary" href="#/">Back to home</a></p>`;
+    } catch (err) {
+      form.querySelector("#book-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- first-time owner setup ----------
+
+function setup() {
+  if (!config.setupNeeded) {
+    view.innerHTML = `<h1>Already set up</h1><p>This site already has an owner. <a href="#/account?mode=signin">Sign in</a> to open the dashboard.</p>`;
+    return;
+  }
+  view.innerHTML = `
+    <h1>Set up your business site</h1>
+    <p class="lead">Create the owner account. Only the owner can see job requests and change the business settings.</p>
+    <form class="card stack" id="setup-form" style="max-width:440px">
+      <label class="stack" style="gap:4px"><strong>Setup code</strong><input type="text" name="code" autocomplete="off" required />
+        <span class="muted">Your SETUP_CODE setting, or the code printed in the server log when it started.</span></label>
+      <label class="stack" style="gap:4px"><strong>Your email</strong><input type="text" inputmode="email" name="email" autocomplete="email" required /></label>
+      <label class="stack" style="gap:4px"><strong>Password</strong><input type="password" name="password" autocomplete="new-password" minlength="8" required /><span class="muted">At least 8 characters.</span></label>
+      <button class="btn" type="submit">Create owner account</button>
+      <div id="setup-msg" aria-live="polite"></div>
+    </form>`;
+  const form = view.querySelector("#setup-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    try {
+      await api("/api/setup", { method: "POST", body: { code: form.code.value.trim(), email: form.email.value, password: form.password.value } });
+      config.setupNeeded = false;
+      await refreshUser();
+      await syncProjects();
+      go("#/admin?tab=settings&welcome=1");
+    } catch (err) {
+      form.querySelector("#setup-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      btn.disabled = false;
+    }
+  });
+}
+
+// ---------- owner dashboard ----------
+
+const STATUS_LABEL = { new: "New", contacted: "Contacted", scheduled: "Scheduled", won: "Job done", lost: "Lost" };
+const STATUS_TONE = { new: "orange", contacted: "blue", scheduled: "violet", won: "green", lost: "red" };
+
+async function admin() {
+  if (!userLoaded) {
+    view.innerHTML = `<h1>Owner dashboard</h1><div class="notice" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Loading…</div>`;
+    return;
+  }
+  if (!user) {
+    rememberAfterLogin("#/admin");
+    return go("#/account?mode=signin");
+  }
+  if (!user.isOwner) {
+    view.innerHTML = `<h1>Owner dashboard</h1><p>Only the business owner can open this page.</p>`;
+    return;
+  }
+  const { query } = currentRoute();
+  const tab = ["jobs", "settings", "setup"].includes(query.get("tab")) ? query.get("tab") : "jobs";
+  view.innerHTML = `<h1>Owner dashboard</h1><div class="notice" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Loading…</div>`;
+
+  let overview;
+  try {
+    overview = await api("/api/admin/overview");
+  } catch (err) {
+    view.innerHTML = `<h1>Owner dashboard</h1><div class="notice warn">${esc(err.message)}</div>`;
+    return;
+  }
+  if (currentRoute().name !== "admin") return;
+  const { stats, checklist } = overview;
+  const todo = checklist.filter((c) => !c.done && !c.optional).length;
+  const newLeads = stats.leadsByStatus.new || 0;
+
+  view.innerHTML = `
+    <h1>Owner dashboard</h1>
+    ${query.get("welcome") ? `<div class="notice ok">🎉 You're the owner now. Start by filling in your business details below.</div>` : ""}
+    <div class="stat-row">
+      <div class="stat tone-orange"><strong>${newLeads}</strong><span>new requests</span></div>
+      <div class="stat tone-blue"><strong>${stats.leadsThisMonth}</strong><span>requests this month</span></div>
+      <div class="stat tone-green"><strong>${stats.users}</strong><span>members</span></div>
+      <div class="stat tone-violet"><strong>${stats.proSubscribers}</strong><span>Pro subscribers</span></div>
+      <div class="stat tone-teal"><strong>${stats.scansThisMonth}</strong><span>photo scans this month (≈$${stats.estimatedAiCostThisMonth.toFixed(2)})</span></div>
+    </div>
+    <div class="tabs" role="tablist">
+      <a role="tab" href="#/admin?tab=jobs" aria-selected="${tab === "jobs"}">Job requests${newLeads ? ` <span class="badge">${newLeads}</span>` : ""}</a>
+      <a role="tab" href="#/admin?tab=settings" aria-selected="${tab === "settings"}">Business settings</a>
+      <a role="tab" href="#/admin?tab=setup" aria-selected="${tab === "setup"}">Setup checklist${todo ? ` <span class="badge">${todo}</span>` : ""}</a>
+    </div>
+    <div id="admin-tab"></div>`;
+  const panel = view.querySelector("#admin-tab");
+  if (tab === "jobs") adminJobs(panel, query.get("status") || "");
+  if (tab === "settings") adminSettings(panel);
+  if (tab === "setup") adminSetup(panel, checklist);
+}
+
+async function adminJobs(panel, status) {
+  const { leads, statuses } = await api(`/api/admin/leads${status ? `?status=${status}` : ""}`);
+  panel.innerHTML = `
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center;margin:12px 0">
+      <div class="chips">${["", ...statuses]
+        .map((s) => `<a class="chip" aria-pressed="${s === status}" href="#/admin?tab=jobs${s ? `&status=${s}` : ""}">${s ? STATUS_LABEL[s] : "All"}</a>`)
+        .join("")}</div>
+      <a class="btn small secondary" href="/api/admin/leads.csv" download>⬇ Download spreadsheet</a>
+    </div>
+    ${leads.length ? `<div class="list">${leads.map(leadCard).join("")}</div>` : `<div class="notice">No ${status ? STATUS_LABEL[status].toLowerCase() + " " : ""}requests yet. When customers tap “Request service” on a guide, they'll show up here${brand().leadEmail || brand().contactEmail ? " and in your email" : ""}.</div>`}`;
+
+  panel.querySelectorAll("[data-lead]").forEach((card) => {
+    const id = card.dataset.lead;
+    const save = async (body, note) => {
+      try {
+        await api(`/api/admin/leads/${id}`, { method: "PATCH", body });
+        note.textContent = "Saved ✓";
+      } catch (err) {
+        note.textContent = err.message;
+      }
+    };
+    const note = card.querySelector(".save-note");
+    card.querySelector("select").addEventListener("change", (e) => {
+      card.querySelector(".lead-status").className = `pill lead-status tone-${STATUS_TONE[e.target.value]}`;
+      card.querySelector(".lead-status").textContent = STATUS_LABEL[e.target.value];
+      save({ status: e.target.value }, note);
+    });
+    card.querySelector("[data-save-notes]").addEventListener("click", () => save({ notes: card.querySelector("textarea").value }, note));
+  });
+}
+
+function leadCard(l) {
+  const when = new Date(l.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return `<article class="card stack lead" data-lead="${l.id}">
+    <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap">
+      <div><h3 style="margin:0">${esc(l.name)} <span class="pill lead-status tone-${STATUS_TONE[l.status]}">${STATUS_LABEL[l.status]}</span></h3>
+        <div class="muted">${esc(when)}${l.zip ? ` · ZIP ${esc(l.zip)}` : ""}${l.preferred_time ? ` · Best time: ${esc(l.preferred_time)}` : ""}</div></div>
+      <div class="shop-links">
+        <a class="btn small" href="${telHref(l.phone)}">📞 ${esc(l.phone)}</a>
+        ${l.email ? `<a class="btn small secondary" href="mailto:${esc(l.email)}">✉ Email</a>` : ""}
+      </div>
+    </div>
+    ${l.applianceName ? `<div><strong>${esc(l.applianceName)}</strong>${l.repairTitle ? ` · was reading “${esc(l.repairTitle)}”` : ""}</div>` : ""}
+    ${l.message ? `<p style="margin:0;white-space:pre-wrap">${esc(l.message)}</p>` : ""}
+    <div class="two-col" style="gap:12px;align-items:end">
+      <label class="stack" style="gap:4px"><span class="muted">Status</span>
+        <select>${Object.entries(STATUS_LABEL).map(([v, t]) => `<option value="${v}" ${v === l.status ? "selected" : ""}>${t}</option>`).join("")}</select></label>
+      <div class="stack" style="gap:4px"><span class="muted">Private notes</span><textarea rows="2" maxlength="2000" placeholder="e.g. Booked for Tue 10am, needs thermal fuse">${esc(l.notes)}</textarea>
+        <div style="display:flex;gap:8px;align-items:center"><button class="btn small secondary" data-save-notes type="button">Save notes</button><span class="muted save-note" aria-live="polite"></span></div></div>
+    </div>
+  </article>`;
+}
+
+async function adminSettings(panel) {
+  const { settings: s } = await api("/api/admin/settings");
+  const field = (name, label, hint = "", attrs = "") =>
+    `<label class="stack" style="gap:4px"><strong>${label}</strong><input type="text" name="${name}" value="${esc(s[name])}" ${attrs} />${hint ? `<span class="muted">${hint}</span>` : ""}</label>`;
+  panel.innerHTML = `
+    <form class="card stack" id="settings-form" style="margin-top:12px">
+      <h3 style="margin:0">Your business</h3>
+      <div class="two-col" style="gap:12px">
+        ${field("businessName", "Business name", "Shown at the top of every page and in search results.", 'maxlength="60" required')}
+        ${field("tagline", "Tagline", "A short line on the home page.", 'maxlength="80"')}
+        ${field("phone", "Phone", "Customers can tap to call you.", 'maxlength="30" inputmode="tel"')}
+        ${field("contactEmail", "Public email", "Shown in the footer. Optional.", 'maxlength="254" inputmode="email"')}
+        ${field("serviceArea", "Service area", "e.g. Austin, Round Rock and Cedar Park", 'maxlength="120"')}
+        ${field("services", "What you fix", "e.g. Appliance repair, water heaters and HVAC", 'maxlength="160"')}
+      </div>
+      <h3 style="margin:8px 0 0">Look</h3>
+      <div class="two-col" style="gap:12px">
+        <label class="stack" style="gap:4px"><strong>Brand color</strong>
+          <span style="display:flex;gap:8px;align-items:center"><input type="color" name="brandColor" value="${esc(s.brandColor)}" style="width:56px;height:44px;padding:2px;border-radius:10px" /><span class="muted">Text and buttons are adjusted automatically so they stay readable.</span></span></label>
+        ${field("logoEmoji", "Logo", "An emoji like 🔧 🛠️ ⚡ 🏠 shown next to your name.", 'maxlength="8"')}
+      </div>
+      <h3 style="margin:8px 0 0">Job requests</h3>
+      <label style="display:flex;gap:10px;align-items:flex-start"><input type="checkbox" name="bookingEnabled" ${s.bookingEnabled ? "checked" : ""} style="margin-top:5px" />
+        <span><strong>Let customers request service online</strong><br><span class="muted">Adds “Request service” buttons to guides and scan results. Turn off to show only your phone number.</span></span></label>
+      ${field("leadEmail", "Email new requests to", "Leave blank to use your public email, or your owner login email.", 'maxlength="254" inputmode="email"')}
+      <div><button class="btn" type="submit">Save settings</button></div>
+      <div id="settings-msg" aria-live="polite"></div>
+    </form>`;
+  const form = panel.querySelector("#settings-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    const body = Object.fromEntries(new FormData(form));
+    body.bookingEnabled = form.bookingEnabled.checked;
+    try {
+      await api("/api/admin/settings", { method: "PUT", body });
+      // Reload so the new name and colors apply everywhere.
+      location.hash = "#/admin?tab=settings&saved=1";
+      location.reload();
+    } catch (err) {
+      form.querySelector("#settings-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      btn.disabled = false;
+    }
+  });
+  if (currentRoute().query.get("saved")) form.querySelector("#settings-msg").innerHTML = `<div class="notice ok">Saved ✓ Your site now shows the new details.</div>`;
+}
+
+function adminSetup(panel, checklist) {
+  panel.innerHTML = `
+    <p class="muted" style="margin-top:12px">Each item turns on a feature. Settings in CAPITALS go in your hosting provider's environment settings (see the Owner's Guide), then restart the app.</p>
+    <div class="list">${checklist
+      .map(
+        (c) => `<div class="card checklist-item ${c.done ? "done" : ""}">
+          <span class="check" aria-hidden="true">${c.done ? "✓" : ""}</span>
+          <div><h3 style="margin:0">${esc(c.label)}${c.optional ? ` <span class="pill">Optional</span>` : ""}</h3>
+          <p class="muted" style="margin:4px 0 0">${c.done ? "Connected." : esc(c.help)}</p></div>
+        </div>`,
+      )
+      .join("")}</div>
+    <div class="card stack" style="margin-top:16px">
+      <h3 style="margin:0">💾 Backups</h3>
+      <p class="muted" style="margin:0">Download a copy of everything: members, job requests and settings. Keep it somewhere safe, like cloud storage. Do this monthly, and before any big change.</p>
+      <div><a class="btn small secondary" href="/api/admin/backup" download>Download backup</a></div>
+    </div>`;
 }
 
 function notFound() {
@@ -792,6 +1117,10 @@ function identificationHtml(result) {
       )
       .join("")}</div>${result.extra_suggestions.some((s) => s.parts?.length) ? AFFILIATE_NOTE : ""}` : ""}
     ${matched.length && (partCtx.modelNumber || partCtx.brand) ? `<p class="muted">We saved your ${esc(`${partCtx.brand} ${partCtx.modelNumber}`.trim())} so repair guides link to parts that fit.</p>` : ""}
+    ${proBox({
+      applianceId: a?.id || "",
+      heading: result.extra_suggestions.some((s) => s.call_a_pro) ? "This one may need a pro" : "Rather have a pro fix it?",
+    })}
     ${others.length ? `<h2>More ${esc(a.name.toLowerCase())} guides</h2><div class="list">${others.map((r) => repairCard(a, r)).join("")}</div>` : ""}
   </div>`;
 }
@@ -811,11 +1140,12 @@ if (!storage.get("fixit.safetySeen", false)) {
 
 refreshUser().then(() => {
   syncProjects();
-  if (["identify", "account", "saved"].includes(currentRoute().name)) render();
+  if (["identify", "account", "saved", "admin"].includes(currentRoute().name)) render();
 });
 api("/api/config")
   .then((c) => {
     config = { ...config, ...c };
+    applyBrand();
     render();
   })
   .catch(() => {});

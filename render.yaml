@@ -1,0 +1,46 @@
+# One-click deploy on Render (render.com). See OWNER_GUIDE.md, step 1.
+# Render asks you for each value marked "sync: false" while setting up.
+# Leave any of those blank to skip that feature for now.
+services:
+  - type: web
+    name: repair-site
+    runtime: node
+    # Persistent disks need a paid instance type; the free type erases data on restart.
+    plan: starter
+    buildCommand: npm ci --omit=dev
+    startCommand: npm start
+    healthCheckPath: /healthz
+    disk:
+      name: data
+      mountPath: /data
+      sizeGB: 1
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: NODE_ENV
+        value: production
+      - key: DATABASE_PATH
+        value: /data/fixit.db
+      - key: TRUST_PROXY
+        value: "1"
+      # Used once to claim the site as its owner. Find it under Environment in Render.
+      - key: SETUP_CODE
+        generateValue: true
+      - key: APP_URL
+        sync: false
+      - key: SMTP_URL
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_PRICE_ID
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      - key: PRO_PRICE_LABEL
+        value: $4.99/month
+      - key: AMAZON_ASSOCIATE_TAG
+        sync: false

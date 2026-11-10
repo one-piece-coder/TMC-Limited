@@ -25,18 +25,18 @@ export function createMailer(config) {
 
 const escapeHtml = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
-export function passwordResetEmail({ to, link, minutes }) {
-  const text = `Someone asked to reset the password for your FixIt Home account.
+export function passwordResetEmail({ to, link, minutes, businessName = "FixIt Home" }) {
+  const text = `Someone asked to reset the password for your ${businessName} account.
 
 Reset your password here (the link works for ${minutes} minutes, one time):
 ${link}
 
 If you didn't ask for this, ignore this email. Your password won't change.`;
   const html = `<div style="font-family:system-ui,sans-serif;max-width:480px;margin:auto;color:#1f1a17">
-  <h2 style="color:#e8590c">🔧 FixIt Home</h2>
-  <p>Someone asked to reset the password for your FixIt Home account.</p>
+  <h2 style="color:#e8590c">${escapeHtml(businessName)}</h2>
+  <p>Someone asked to reset the password for your ${escapeHtml(businessName)} account.</p>
   <p><a href="${escapeHtml(link)}" style="display:inline-block;background:#e8590c;color:#fff;padding:12px 20px;border-radius:10px;text-decoration:none;font-weight:700">Reset my password</a></p>
   <p style="color:#6b625c;font-size:14px">The link works for ${minutes} minutes, one time. If you didn't ask for this, ignore this email. Your password won't change.</p>
 </div>`;
-  return { to, subject: "Reset your FixIt Home password", text, html };
+  return { to, subject: `Reset your ${businessName} password`, text, html };
 }

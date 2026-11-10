@@ -3,19 +3,20 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="description" content="Identify your home appliances, find DIY repairs, and watch step-by-step video tutorials." />
-    <meta name="theme-color" content="#e8590c" />
+    <meta name="description" content="{{TAGLINE}}. Identify your home appliances, find DIY repairs, and watch step-by-step video tutorials." />
+    <meta name="theme-color" content="{{THEME_COLOR}}" />
     <meta property="og:type" content="website" />
-    <meta property="og:site_name" content="FixIt Home" />
-    <meta property="og:title" content="FixIt Home: DIY appliance repair" />
+    <meta property="og:site_name" content="{{BUSINESS_NAME}}" />
+    <meta property="og:title" content="{{BUSINESS_NAME}}: DIY appliance repair" />
     <meta property="og:description" content="Identify your home appliances, find DIY repairs, and watch step-by-step video tutorials." />
-    <title>FixIt Home: Identify Appliances &amp; DIY Repair Guides</title>
+    <title>{{BUSINESS_NAME}}: Identify Appliances &amp; DIY Repair Guides</title>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="stylesheet" href="/styles.css" />
+    {{BRAND_CSS}}
   </head>
   <body>
     <header class="topbar">
-      <a href="#/" class="brand"><span class="brand-mark">🔧</span> FixIt Home</a>
+      <a href="#/" class="brand"><span class="brand-mark">{{LOGO}}</span> <span data-brand-name>{{BUSINESS_NAME}}</span></a>
       <nav class="nav">
         <a href="#/identify" data-nav="identify">Identify</a>
         <a href="#/browse" data-nav="browse">Repairs</a>
@@ -39,9 +40,10 @@
           <li><a href="/guides/toilet">Toilet repair</a></li>
         </ul>
       </nav>
+      <p id="footer-contact"></p>
       <p>
-        FixIt Home provides general DIY guidance. Always follow your appliance's manual, turn off power, water and gas
-        before working, and call a licensed professional when in doubt.
+        {{BUSINESS_NAME}} provides general DIY guidance. Always follow your appliance's manual, turn off power, water and
+        gas before working, and call a licensed professional when in doubt.
       </p>
     </footer>
     <script type="module" src="/app.js"></script>

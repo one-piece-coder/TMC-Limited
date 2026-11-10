@@ -121,9 +121,11 @@ function client(base) {
     return { status: res.status, data };
   };
   return {
+    cookieHeader: () => cookie,
     get: (p) => call("GET", p),
     post: (p, b = {}) => call("POST", p, b),
     put: (p, b = {}) => call("PUT", p, b),
+    patch: (p, b = {}) => call("PATCH", p, b),
     del: (p) => call("DELETE", p, {}),
   };
 }
@@ -452,4 +454,208 @@ test("password reset is off in production without email or APP_URL", async () =>
   const { createMailer } = await import("../server/email.js");
   assert.equal(createMailer({ production: true, smtpUrl: "" }).enabled, false);
   assert.equal(createMailer({ production: false, smtpUrl: "" }).enabled, true);
+});
+
+// ---------- turnkey business features ----------
+
+import { brandCss, contrast, validateSettings } from "../server/business.js";
+import { leadsToCsv, validateLead } from "../server/leads.js";
+
+const SETUP = { setupCode: "letmein123" };
+
+async function ownerClient(base) {
+  const c = client(base);
+  const res = await c.post("/api/setup", { code: "letmein123", email: "owner@shop.com", password: "owner-pass" });
+  assert.equal(res.status, 200);
+  return c;
+}
+
+test("first-time setup needs the setup code and only works once", async () => {
+  const { app } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    assert.equal((await c.get("/api/config")).data.setupNeeded, true);
+    assert.equal((await c.post("/api/setup", { code: "wrong", email: "x@y.co", password: "password1" })).status, 403);
+    const owner = await ownerClient(base);
+    assert.equal((await owner.get("/api/me")).data.user.isOwner, true);
+    assert.equal((await c.get("/api/config")).data.setupNeeded, false);
+    assert.equal((await c.post("/api/setup", { code: "letmein123", email: "y@y.co", password: "password1" })).status, 409);
+  });
+});
+
+test("an existing account can be made owner only with its password", async () => {
+  const { app } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    await client(base).post("/api/signup", { email: "owner@shop.com", password: "real-pass" });
+    const attacker = client(base);
+    assert.equal((await attacker.post("/api/setup", { code: "letmein123", email: "owner@shop.com", password: "guess-pass" })).status, 401);
+    const owner = client(base);
+    assert.equal((await owner.post("/api/setup", { code: "letmein123", email: "owner@shop.com", password: "real-pass" })).status, 200);
+  });
+});
+
+test("dashboard is owner-only", async () => {
+  const { app } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    assert.equal((await c.get("/api/admin/overview")).status, 401);
+    await c.post("/api/signup", { email: "member@x.com", password: "password1" });
+    assert.equal((await c.get("/api/admin/overview")).status, 403);
+    assert.equal((await c.get("/api/admin/leads.csv")).status, 403);
+    assert.equal((await c.put("/api/admin/settings", { businessName: "Hacked" })).status, 403);
+  });
+});
+
+test("business settings rebrand the app shell, guide pages, manifest and emails", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app } = makeApp({ mailer, config: { ...SETUP, appUrl: "https://acme.example" } });
+  await withServer(app, async (base) => {
+    const owner = await ownerClient(base);
+    assert.equal((await owner.put("/api/admin/settings", { businessName: "" })).status, 400);
+    assert.equal((await owner.put("/api/admin/settings", { brandColor: "red" })).status, 400);
+    const saved = await owner.put("/api/admin/settings", {
+      businessName: "Acme <Appliance> Repair",
+      phone: "(512) 555-0199",
+      serviceArea: "Austin, TX",
+      brandColor: "#1971C2",
+      logoEmoji: "⚡",
+      evil: "ignored",
+    });
+    assert.equal(saved.status, 200);
+    assert.equal(saved.data.settings.brandColor, "#1971c2");
+    assert.equal(saved.data.settings.evil, undefined);
+
+    const shell = await (await fetch(`${base}/`)).text();
+    assert.match(shell, /<title>Acme &lt;Appliance&gt; Repair: Identify/);
+    assert.ok(!shell.includes("{{"), "no leftover placeholders");
+    assert.match(shell, /<style id="brand-css">/);
+
+    const guide = await (await fetch(`${base}/guides/dryer/dryer-no-heat`)).text();
+    assert.match(guide, /\| Acme &lt;Appliance&gt; Repair<\/title>/);
+    assert.match(guide, /href="tel:5125550199"/);
+    assert.match(guide, /href="\/#\/book\?appliance=dryer&amp;repair=dryer-no-heat"|href="\/#\/book\?appliance=dryer&repair=dryer-no-heat"/);
+    assert.match(guide, /"@type":"HomeAndConstructionBusiness"/);
+    assert.ok(!guide.includes("FixIt Home"));
+
+    const manifest = await (await fetch(`${base}/manifest.webmanifest`)).json();
+    assert.equal(manifest.name, "Acme <Appliance> Repair");
+
+    const config = (await client(base).get("/api/config")).data;
+    assert.equal(config.brand.phone, "(512) 555-0199");
+    assert.equal(config.brand.leadEmail, undefined, "private settings stay private");
+
+    await client(base).post("/api/password/forgot", { email: "owner@shop.com" });
+    await tick();
+    assert.equal(sent.at(-1).subject, "Reset your Acme <Appliance> Repair password");
+  });
+});
+
+test("brand colors stay readable", () => {
+  assert.equal(brandCss("#e8590c"), "", "default color needs no override");
+  for (const color of ["#ffeb3b", "#00ff00", "#1971c2", "#000000"]) {
+    const css = brandCss(color);
+    const light = css.match(/--accent:(#[0-9a-f]{6})/)[1];
+    const ink = css.match(/--accent-ink:(#[0-9a-f]{6})/)[1];
+    assert.ok(contrast(light, "#fffaf5") >= 4.5, `${color} accent readable on light`);
+    assert.ok(contrast(ink, light) >= 4.5, `${color} button text readable`);
+  }
+  assert.deepEqual(validateSettings({ bookingEnabled: 0 }).values, { bookingEnabled: false });
+});
+
+test("service requests are saved, emailed to the owner, and spam-guarded", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app } = makeApp({ mailer, config: { ...SETUP, appUrl: "https://acme.example" } });
+  await withServer(app, async (base) => {
+    const owner = await ownerClient(base);
+    await owner.put("/api/admin/settings", { businessName: "Acme Repair", leadEmail: "jobs@acme.example" });
+    const visitor = client(base);
+    const lead = { name: "Jo", phone: "512-555-0100", zip: "78701", applianceId: "dryer", repairId: "dryer-no-heat", message: "No heat", consent: true };
+
+    assert.equal((await visitor.post("/api/leads", { ...lead, phone: "12" })).status, 400);
+    assert.equal((await visitor.post("/api/leads", { ...lead, consent: false })).status, 400);
+    assert.equal((await visitor.post("/api/leads", lead)).status, 201);
+    // Bot filled the hidden field: looks successful, but nothing is saved.
+    assert.equal((await visitor.post("/api/leads", { ...lead, name: "Bot", website: "spam.example" })).status, 201);
+    await tick();
+
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, "jobs@acme.example");
+    assert.match(sent[0].subject, /New repair request: Jo \(Clothes Dryer\)/);
+    assert.match(sent[0].text, /They were reading: How to Fix a Dryer That Won't Heat/);
+    assert.match(sent[0].text, /https:\/\/acme\.example\/#\/admin/);
+
+    const { leads } = (await owner.get("/api/admin/leads")).data;
+    assert.equal(leads.length, 1);
+    assert.equal(leads[0].status, "new");
+    const id = leads[0].id;
+    assert.equal((await visitor.patch(`/api/admin/leads/${id}`, { status: "won" })).status, 401);
+    assert.equal((await owner.patch(`/api/admin/leads/${id}`, { status: "bogus" })).status, 400);
+    const updated = await owner.patch(`/api/admin/leads/${id}`, { status: "scheduled", notes: "Tue 10am" });
+    assert.equal(updated.data.lead.status, "scheduled");
+    assert.equal(updated.data.lead.notes, "Tue 10am");
+    assert.equal((await owner.get("/api/admin/leads?status=scheduled")).data.leads.length, 1);
+    assert.equal((await owner.get("/api/admin/leads?status=new")).data.leads.length, 0);
+
+    const csvRes = await fetch(`${base}/api/admin/leads.csv`, { headers: { cookie: owner.cookieHeader() } });
+    assert.match(csvRes.headers.get("content-disposition"), /attachment; filename="service-requests-/);
+    assert.match(await csvRes.text(), /Jo,512-555-0100/);
+
+    const overview = (await owner.get("/api/admin/overview")).data;
+    assert.equal(overview.stats.leadsThisMonth, 1);
+    assert.equal(overview.stats.leadsByStatus.scheduled, 1);
+    const item = (id) => overview.checklist.find((c) => c.id === id);
+    assert.equal(item("appUrl").done, true);
+    assert.equal(item("billing").done, false);
+    assert.equal(item("profile").done, false, "no phone/service area yet");
+
+    // Booking can be switched off.
+    await owner.put("/api/admin/settings", { bookingEnabled: false });
+    assert.equal((await client(base).post("/api/leads", lead)).status, 503);
+  });
+});
+
+test("lead validation and CSV export are safe", () => {
+  const { lead } = validateLead({ name: "  Jo  ", phone: "5125550100", applianceId: "nope", repairId: "x", consent: true });
+  assert.equal(lead.name, "Jo");
+  assert.equal(lead.applianceId, "");
+  assert.equal(lead.repairId, "");
+  const csv = leadsToCsv([
+    { created_at: 0, status: "new", name: "=HYPERLINK(\"http://evil\")", phone: "+1 512", email: "", zip: "", appliance_id: "", repair_id: "", preferred_time: "", message: "a,b\nc", notes: "" },
+  ]);
+  assert.match(csv, /"'=HYPERLINK\(""http:\/\/evil""\)"/);
+  assert.match(csv, /,'\+1 512,/);
+  assert.match(csv, /"a,b\nc"/);
+});
+
+test("older databases gain the owner role column", async () => {
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+  const { DatabaseSync } = await import("node:sqlite");
+  const file = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "fixit-")), "old.db");
+  const old = new DatabaseSync(file);
+  old.exec("CREATE TABLE users (id INTEGER PRIMARY KEY AUTOINCREMENT, email TEXT NOT NULL UNIQUE COLLATE NOCASE, password_hash TEXT NOT NULL, plan TEXT NOT NULL DEFAULT 'free', stripe_customer_id TEXT UNIQUE, subscription_status TEXT, created_at INTEGER NOT NULL)");
+  old.exec("INSERT INTO users (email, password_hash, created_at) VALUES ('a@b.co', 'x', 1)");
+  old.close();
+  const db = openDatabase(file);
+  assert.equal(db.userByEmail("a@b.co").role, "user");
+  assert.equal(db.ownerCount(), 0);
+});
+
+test("health check and owner backup download", async () => {
+  const { app } = makeApp({ config: SETUP });
+  await withServer(app, async (base) => {
+    assert.deepEqual(await (await fetch(`${base}/healthz`)).json(), { ok: true });
+    assert.equal((await fetch(`${base}/api/admin/backup`)).status, 401);
+    const owner = await ownerClient(base);
+    const res = await fetch(`${base}/api/admin/backup`, { headers: { cookie: owner.cookieHeader() } });
+    assert.equal(res.status, 200);
+    const bytes = Buffer.from(await res.arrayBuffer());
+    assert.equal(bytes.subarray(0, 15).toString(), "SQLite format 3");
+  });
+});
+
+test("APP_URL falls back to Render's address", () => {
+  assert.equal(loadConfig({ RENDER_EXTERNAL_URL: "https://shop.onrender.com/" }).appUrl, "https://shop.onrender.com");
+  assert.equal(loadConfig({ APP_URL: "https://shop.com", RENDER_EXTERNAL_URL: "https://x.onrender.com" }).appUrl, "https://shop.com");
 });

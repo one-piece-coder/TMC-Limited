@@ -271,6 +271,7 @@ a.card.repair-item, .repair-item { display: flex; justify-content: space-between
 @media (max-width: 560px) {
   .topbar { flex-direction: column; align-items: stretch; }
   .nav { justify-content: space-between; }
+  .nav { flex-wrap: wrap; row-gap: 2px; }
   .nav a { padding: 8px 10px; font-size: 0.9rem; }
   .hero { padding: 20px; }
 }
@@ -390,3 +391,20 @@ a.card.feature:hover { border-color: var(--tone); }
 .footer-guides a { color: var(--muted); }
 .share-link { font-size: 0.9rem; }
 .two-col .shop-list { padding-left: 0; }
+
+/* ---------- business owner features ---------- */
+.book-box h3 { margin: 0 0 6px; }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+.stat-row { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); margin: 12px 0 20px; }
+.stat { display: grid; gap: 2px; padding: 14px 16px; border-radius: 12px; background: var(--tone-soft); }
+.stat strong { font-size: 1.6rem; color: var(--tone); line-height: 1.1; }
+.stat span { color: var(--muted); font-size: 0.88rem; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--border); overflow-x: auto; }
+.tabs a { padding: 10px 14px; text-decoration: none; color: var(--muted); font-weight: 700; white-space: nowrap; border-bottom: 3px solid transparent; }
+.tabs a[aria-selected="true"] { color: var(--accent); border-bottom-color: var(--accent); }
+.badge { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--accent); color: var(--accent-ink); font-size: 0.75rem; }
+a.chip { text-decoration: none; }
+.lead-status { color: var(--tone); background: var(--tone-soft); }
+.checklist-item { display: flex; gap: 14px; align-items: flex-start; }
+.checklist-item .check { flex: none; display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; border: 2px solid var(--border); color: #fff; font-weight: 800; }
+.checklist-item.done .check { background: var(--ok); border-color: var(--ok); }

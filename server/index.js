@@ -23,11 +23,18 @@ import {
 import { createBillingRouter, createWebhookHandler, usageFor } from "./billing.js";
 import { rateLimit } from "./rateLimit.js";
 import { createGuidePages, renderNotFoundPage } from "./pages.js";
+import { brandCss, loadSettings, publicBrand } from "./business.js";
+import { leadEmail, validateLead } from "./leads.js";
+import { createAdminRouter } from "./admin.js";
+import fs from "node:fs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
 const RESET_MINUTES = 60;
 const PROJECT_KEY = /^[a-z0-9-]{1,60}\/[a-z0-9-]{1,80}$/;
+
+const esc = (s) =>
+  String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
 
 export function createApp({
   db = openDatabase(),
@@ -38,6 +45,10 @@ export function createApp({
   mailer = createMailer(config),
 } = {}) {
   const app = express();
+  // Business settings are read on every page, so keep them in memory and refresh on save.
+  let settings = loadSettings(db);
+  const getSettings = () => settings;
+  const billingEnabled = Boolean(stripe && config.stripePriceId);
   app.disable("x-powered-by");
   app.set("trust proxy", config.trustProxy);
   app.use((_req, res, next) => {
@@ -46,6 +57,9 @@ export function createApp({
     res.setHeader("X-Frame-Options", "DENY");
     next();
   });
+
+  // Hosting providers ping this to check the app is up.
+  app.get("/healthz", (_req, res) => res.set("Cache-Control", "no-store").json({ ok: true }));
 
   // Stripe webhooks need the raw body for signature checks, so mount before express.json().
   app.post("/api/stripe/webhook", express.raw({ type: "application/json" }), createWebhookHandler({ db, stripe, config }));
@@ -58,6 +72,7 @@ export function createApp({
       email: user.email,
       plan: user.plan,
       hasBilling: Boolean(user.stripe_customer_id),
+      isOwner: user.role === "owner",
       usage: usageFor(db, user, config),
     };
 
@@ -65,12 +80,14 @@ export function createApp({
     res.json({
       aiEnabled: isAiConfigured(),
       model: isAiConfigured() ? MODEL : null,
-      billingEnabled: Boolean(stripe && config.stripePriceId),
+      billingEnabled,
       freeScansPerMonth: config.freeScansPerMonth,
       proScansPerMonth: config.proScansPerMonth,
       proPriceLabel: config.proPriceLabel,
       retailers: config.retailers,
       passwordResetEnabled: resetEnabled,
+      setupNeeded: db.ownerCount() === 0,
+      brand: publicBrand(settings),
     });
   });
 
@@ -133,7 +150,7 @@ export function createApp({
       // The token sits after "#", so browsers never send it to servers or in Referer headers.
       const link = `${base}/#/reset?token=${token}`;
       // Not awaited, so response time doesn't reveal whether the account exists.
-      Promise.resolve(mailer.send(passwordResetEmail({ to: user.email, link, minutes: RESET_MINUTES }))).catch((err) =>
+      Promise.resolve(mailer.send(passwordResetEmail({ to: user.email, link, minutes: RESET_MINUTES, businessName: settings.businessName }))).catch((err) =>
         console.error("Couldn't send password reset email:", err.message),
       );
     }
@@ -186,6 +203,47 @@ export function createApp({
     db.deleteProject(req.user.id, `${req.params.applianceId}/${req.params.repairId}`);
     res.json({ ok: true });
   });
+
+  // ---------- service requests (leads for the business) ----------
+
+  const leadLimiter = rateLimit({
+    windowMs: 60 * 60_000,
+    max: 5,
+    message: "You've sent several requests already. Please call us instead, or try again later.",
+  });
+
+  app.post("/api/leads", leadLimiter, (req, res) => {
+    if (!settings.bookingEnabled) return res.status(503).json({ error: "Online booking is turned off. Please call us." });
+    // Hidden "website" field: people never see it, spam bots fill it in. Pretend success.
+    if (req.body?.website) return res.status(201).json({ ok: true });
+    const { lead, error } = validateLead(req.body);
+    if (error) return res.status(400).json({ error });
+    const saved = db.createLead({ ...lead, userId: req.user?.id });
+    const to = settings.leadEmail || settings.contactEmail || db.ownerEmails().join(",");
+    if (to && mailer.enabled) {
+      const base = config.appUrl || `${req.protocol}://${req.get("host")}`;
+      const msg = leadEmail({ lead: saved, businessName: settings.businessName, dashboardUrl: `${base}/#/admin` });
+      Promise.resolve(mailer.send({ to, ...msg })).catch((err) => console.error("Couldn't email new lead:", err.message));
+    }
+    res.status(201).json({ ok: true });
+  });
+
+  // ---------- owner dashboard ----------
+
+  app.use(
+    "/api",
+    createAdminRouter({
+      db,
+      config,
+      isAiConfigured,
+      billingEnabled,
+      resetEnabled,
+      authLimiter,
+      onSettingsChanged: () => {
+        settings = loadSettings(db);
+      },
+    }),
+  );
 
   // ---------- billing ----------
 
@@ -247,22 +305,57 @@ export function createApp({
     res.status(500).json({ error: "Something went wrong. Please try again." });
   });
 
-  app.use(createGuidePages({ config }));
-  app.use(express.static(PUBLIC_DIR));
+  // The app's home page and install manifest carry the business's name and colors.
+  const shellTemplate = fs.readFileSync(path.join(PUBLIC_DIR, "index.html"), "utf8");
+  const sendShell = (_req, res) => {
+    const b = settings;
+    const html = shellTemplate
+      .replaceAll("{{BUSINESS_NAME}}", esc(b.businessName))
+      .replaceAll("{{TAGLINE}}", esc(b.tagline))
+      .replaceAll("{{LOGO}}", esc(b.logoEmoji))
+      .replaceAll("{{THEME_COLOR}}", esc(b.brandColor))
+      .replace("{{BRAND_CSS}}", brandCss(b.brandColor) ? `<style id="brand-css">${brandCss(b.brandColor)}</style>` : "");
+    res.set("Cache-Control", "no-cache").type("html").send(html);
+  };
+  app.get(["/", "/index.html"], sendShell);
+  app.get("/manifest.webmanifest", (_req, res) => {
+    res.type("application/manifest+json").send(
+      JSON.stringify({
+        name: settings.businessName,
+        short_name: settings.businessName.slice(0, 12),
+        description: settings.tagline,
+        start_url: "/",
+        display: "standalone",
+        background_color: "#fffaf5",
+        theme_color: settings.brandColor,
+        icons: [],
+      }),
+    );
+  });
+
+  app.use(createGuidePages({ config, getSettings }));
+  app.use(express.static(PUBLIC_DIR, { index: false }));
   // The app itself uses #/ routes, so any other path really doesn't exist. A true 404
   // (rather than serving the app) keeps search engines from indexing junk URLs.
   app.use((req, res) => {
     const origin = config.appUrl || `${req.protocol}://${req.get("host")}`;
-    res.status(404).type("html").send(renderNotFoundPage({ origin }));
+    res.status(404).type("html").send(renderNotFoundPage({ origin, settings }));
   });
   return app;
 }
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const config = loadConfig();
+  const db = openDatabase();
   const port = Number(process.env.PORT) || 3000;
-  createApp({ config }).listen(port, () => {
-    console.log(`FixIt Home running at http://localhost:${port}`);
+  createApp({ config, db }).listen(port, () => {
+    console.log(`Running at http://localhost:${port}`);
+    if (db.ownerCount() === 0) {
+      console.log(
+        `\n*** No owner yet. Open ${config.appUrl || `http://localhost:${port}`}/#/setup and enter the setup code` +
+          (config.setupCodeFromEnv ? " from your SETUP_CODE setting. ***\n" : `: ${config.setupCode} ***\n`),
+      );
+    }
     if (!aiConfigured()) console.log("ANTHROPIC_API_KEY not set: photo identification disabled, guided mode only.");
     if (!config.stripeSecretKey || !config.stripePriceId) console.log("Stripe not configured: upgrades disabled.");
     if (!config.smtpUrl) {
