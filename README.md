@@ -37,7 +37,9 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 | `FREE_SCANS_PER_MONTH` / `PRO_SCANS_PER_MONTH` | Monthly scan limits (defaults 3 and 100) |
 | `AMAZON_ASSOCIATE_TAG` | Your Amazon Associates tracking id, added to every Amazon link |
 | `PARTS_RETAILERS` | JSON array of extra retailers: `[{"name":"PartsCo","template":"https://partsco.example/search?q={query}&aff=123"}]` |
-| `APP_URL` | Public URL, used for Stripe redirect links (e.g. `https://fixithome.app`) |
+| `APP_URL` | Public URL, used in Stripe redirects and password-reset emails (e.g. `https://fixithome.app`). Required for password reset in production. |
+| `SMTP_URL` | Email server for password-reset emails, e.g. `smtps://USER:PASS@smtp.postmarkapp.com:465`. Most providers (Postmark, SendGrid, Mailgun, Amazon SES, Resend) give you SMTP credentials. |
+| `EMAIL_FROM` | Sender address, e.g. `FixIt Home <help@fixithome.app>`. It must be a domain you've verified with your email provider. |
 | `DATABASE_PATH` | SQLite file (default `data/fixit.db`). Put it on a persistent disk and back it up. |
 | `TRUST_PROXY` | Set to `1` behind one reverse proxy/load balancer so rate limits see real client IPs |
 | `NODE_ENV=production` | Marks login cookies `Secure` (HTTPS only) |
@@ -49,6 +51,13 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 3. Turn on the Customer Portal (Settings → Billing → Customer portal). The "Manage subscription" button uses it to let users cancel or update their card.
 4. Test locally with the Stripe CLI: `stripe listen --forward-to localhost:3000/api/stripe/webhook`, then pay with card `4242 4242 4242 4242`.
 
+## Password reset
+
+"Forgot your password?" on the sign-in page emails a reset link. The link works once and expires after an hour, and asking again cancels the previous one. Setting a new password signs the user out on every other device.
+
+- **Development:** with no `SMTP_URL`, the email is printed in the server console instead of being sent, so you can click the link.
+- **Production:** set `SMTP_URL`, `EMAIL_FROM` and `APP_URL`. Without all three, the reset option is hidden. `APP_URL` is required because building the link from the incoming request would let an attacker point a victim's reset link at their own site.
+
 ## Affiliate programs
 
 - **Amazon Associates:** sign up, then set `AMAZON_ASSOCIATE_TAG`. Without a tag the links still work but earn nothing.
@@ -57,7 +66,7 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 
 ## Still needed before a public launch
 
-- Password reset and email verification. These need an email-sending service.
+- Email verification at sign-up (the email sender from password reset can be reused for it).
 - Terms of Service and Privacy Policy pages, then a "you agree to..." line on sign-up.
 - Run on one server process, or move rate limiting to a shared store like Redis before running several.
 
@@ -71,6 +80,7 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 | `public/data/parts.js` | Builds retailer and affiliate shopping links |
 | `server/index.js` | Express server: routes and wiring |
 | `server/auth.js` | Password hashing, session cookies, CSRF guard |
+| `server/email.js` | Sends password-reset emails over SMTP (prints them in dev) |
 | `server/billing.js` | Scan quotas, Stripe Checkout, Customer Portal, webhooks |
 | `server/db.js` | SQLite storage: users, sessions, scans, projects |
 | `server/rateLimit.js` | In-memory rate limiter |

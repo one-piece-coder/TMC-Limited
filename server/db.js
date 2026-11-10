@@ -17,6 +17,11 @@ CREATE TABLE IF NOT EXISTS sessions (
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   expires_at INTEGER NOT NULL
 );
+CREATE TABLE IF NOT EXISTS password_resets (
+  token_hash TEXT PRIMARY KEY,
+  user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  expires_at INTEGER NOT NULL
+);
 CREATE TABLE IF NOT EXISTS scans (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -56,6 +61,12 @@ function createStore(db) {
     ),
     deleteSession: q("DELETE FROM sessions WHERE token_hash = ?"),
     purgeSessions: q("DELETE FROM sessions WHERE expires_at <= ?"),
+    setPassword: q("UPDATE users SET password_hash = ? WHERE id = ?"),
+    deleteUserSessions: q("DELETE FROM sessions WHERE user_id = ?"),
+    deleteUserResets: q("DELETE FROM password_resets WHERE user_id = ?"),
+    insertReset: q("INSERT INTO password_resets (token_hash, user_id, expires_at) VALUES (?, ?, ?)"),
+    resetByToken: q("SELECT user_id FROM password_resets WHERE token_hash = ? AND expires_at > ?"),
+    purgeResets: q("DELETE FROM password_resets WHERE expires_at <= ?"),
     insertScan: q("INSERT INTO scans (user_id, created_at) VALUES (?, ?)"),
     deleteScan: q("DELETE FROM scans WHERE id = ?"),
     countScans: q("SELECT COUNT(*) AS n FROM scans WHERE user_id = ? AND created_at >= ?"),
@@ -82,6 +93,27 @@ function createStore(db) {
     sessionUser: (tokenHash) => stmts.sessionUser.get(tokenHash, Date.now()),
     deleteSession: (tokenHash) => stmts.deleteSession.run(tokenHash),
     purgeExpiredSessions: () => stmts.purgeSessions.run(Date.now()),
+
+    // Only one reset link is valid at a time; asking again replaces the old one.
+    createPasswordReset(userId, tokenHash, expiresAt) {
+      stmts.purgeResets.run(Date.now());
+      stmts.deleteUserResets.run(userId);
+      stmts.insertReset.run(tokenHash, userId, expiresAt);
+    },
+    resetTokenUserId: (tokenHash) => stmts.resetByToken.get(tokenHash, Date.now())?.user_id ?? null,
+    // Sets the new password, burns every reset link, and signs out all devices.
+    resetPassword(userId, passwordHash) {
+      db.exec("BEGIN");
+      try {
+        stmts.setPassword.run(passwordHash, userId);
+        stmts.deleteUserResets.run(userId);
+        stmts.deleteUserSessions.run(userId);
+        db.exec("COMMIT");
+      } catch (err) {
+        db.exec("ROLLBACK");
+        throw err;
+      }
+    },
 
     // Records a scan and returns its id so it can be refunded if the scan fails.
     recordScan: (userId) => Number(stmts.insertScan.run(userId, Date.now()).lastInsertRowid),

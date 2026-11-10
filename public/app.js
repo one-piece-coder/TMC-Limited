@@ -207,8 +207,14 @@ function render() {
     const active = a.dataset.nav === name || (a.dataset.nav === "browse" && ["appliance", "repair"].includes(name));
     a.classList.toggle("active", active);
   });
-  const views = { home, identify, browse, appliance, repair, saved, search, account };
+  const views = { home, identify, browse, appliance, repair, saved, search, account, forgot, reset };
   (views[name] || home)(...params);
+}
+
+// Navigate, re-rendering even when the target is the page we're already on.
+function go(hash) {
+  if (location.hash === hash) render();
+  else location.hash = hash;
 }
 
 window.addEventListener("hashchange", () => {
@@ -219,22 +225,41 @@ window.addEventListener("hashchange", () => {
 
 // ---------- views ----------
 
+const CATEGORY_TONE = { Kitchen: "orange", Laundry: "blue", Utility: "red", HVAC: "teal", Plumbing: "violet" };
+
 function home() {
+  const repairCount = CATALOG.reduce((n, a) => n + a.repairs.length, 0);
   view.innerHTML = `
-    <section class="hero">
+    <section class="hero hero-bold">
+      <div class="hero-art" aria-hidden="true">🔧🪛🧰</div>
+      <p class="eyebrow">DIY home repair, made simple</p>
       <h1>Fix it yourself. Save the service call.</h1>
       <p>Snap a photo to identify your appliance, get repair suggestions matched to the problem, and follow along with video tutorials.</p>
       <form class="search" id="home-search" role="search">
         <label class="sr-only" for="q">Describe the problem</label>
         <input id="q" type="search" placeholder="Describe the problem, e.g. “dryer not heating”" />
-        <button class="btn" type="submit">Find repairs</button>
+        <button class="btn btn-light" type="submit">Find repairs</button>
       </form>
+      <div class="hero-stats">
+        <span><strong>${CATALOG.length}</strong> appliances</span>
+        <span><strong>${repairCount}</strong> step-by-step guides</span>
+        <span><strong>Free</strong> to browse</span>
+      </div>
     </section>
+
     <div class="feature-row">
-      <a class="card" href="#/identify"><div class="icon">📷</div><h3>Identify an appliance</h3><p class="muted">Upload a photo and we'll tell you what it is, the brand and model if visible, and likely fixes.</p></a>
-      <a class="card" href="#/browse"><div class="icon">🛠️</div><h3>Browse repair guides</h3><p class="muted">Step-by-step guides with tools, parts, cost and difficulty for common breakdowns.</p></a>
-      <a class="card" href="#/saved"><div class="icon">📋</div><h3>Track your projects</h3><p class="muted">Check off steps as you go and pick up where you left off.</p></a>
+      <a class="card feature tone-blue" href="#/identify"><div class="feature-icon">📷</div><h3>Identify an appliance</h3><p class="muted">Upload a photo and we'll tell you what it is, the brand and model if visible, and likely fixes.</p></a>
+      <a class="card feature tone-green" href="#/browse"><div class="feature-icon">🛠️</div><h3>Browse repair guides</h3><p class="muted">Step-by-step guides with tools, parts, cost and difficulty for common breakdowns.</p></a>
+      <a class="card feature tone-violet" href="#/saved"><div class="feature-icon">📋</div><h3>Track your projects</h3><p class="muted">Check off steps as you go and pick up where you left off.</p></a>
     </div>
+
+    <h2>What needs fixing?</h2>
+    <div class="tile-row">
+      ${CATALOG.map(
+        (a) => `<a class="tile tone-${CATEGORY_TONE[a.category] || "orange"}" href="#/appliance/${a.id}"><span class="tile-icon">${a.icon}</span><span>${esc(a.name)}</span></a>`,
+      ).join("")}
+    </div>
+
     <h2>Popular quick fixes</h2>
     <div class="list">
       ${CATALOG.flatMap((a) => a.repairs.filter((r) => r.difficulty === 1).slice(0, 1).map((r) => repairCard(a, r)))
@@ -244,7 +269,7 @@ function home() {
   view.querySelector("#home-search").addEventListener("submit", (e) => {
     e.preventDefault();
     const q = view.querySelector("#q").value.trim();
-    if (q) location.hash = `#/search/${encodeURIComponent(q)}`;
+    if (q) go(`#/search/${encodeURIComponent(q)}`);
   });
 }
 
@@ -262,7 +287,7 @@ function search(query = "") {
   view.querySelector("#search-form").addEventListener("submit", (e) => {
     e.preventDefault();
     const q = view.querySelector("#q2").value.trim();
-    if (q) location.hash = `#/search/${encodeURIComponent(q)}`;
+    if (q) go(`#/search/${encodeURIComponent(q)}`);
   });
 }
 
@@ -480,6 +505,74 @@ function proPitch() {
   </div>`;
 }
 
+function forgot() {
+  view.innerHTML = `
+    <h1>Reset your password</h1>
+    <p class="muted">Enter the email you signed up with and we'll send you a link to choose a new password.</p>
+    <form class="card stack" id="forgot-form" style="max-width:420px">
+      <label class="stack" style="gap:4px"><strong>Email</strong><input type="text" inputmode="email" name="email" autocomplete="email" required /></label>
+      <button class="btn" type="submit">Send reset link</button>
+      <div id="forgot-msg" aria-live="polite"></div>
+      <p class="muted" style="margin:0"><a href="#/account?mode=signin">Back to sign in</a></p>
+    </form>`;
+  const form = view.querySelector("#forgot-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    const msg = form.querySelector("#forgot-msg");
+    try {
+      const data = await api("/api/password/forgot", { method: "POST", body: { email: form.email.value } });
+      msg.innerHTML = `<div class="notice ok">${esc(data.message)} The link works for one hour.</div>`;
+      btn.textContent = "Send again";
+    } catch (err) {
+      msg.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+}
+
+let resetToken = "";
+function reset() {
+  resetToken = currentRoute().query.get("token") || resetToken;
+  const token = resetToken;
+  // Keep the token out of the address bar and browser history once it's read.
+  history.replaceState(null, "", "#/reset");
+  if (!token) {
+    view.innerHTML = `<h1>Reset link missing</h1><p>Open the link from your email again, or <a href="#/forgot">request a new one</a>.</p>`;
+    return;
+  }
+  view.innerHTML = `
+    <h1>Choose a new password</h1>
+    <form class="card stack" id="reset-form" style="max-width:420px">
+      <label class="stack" style="gap:4px"><strong>New password</strong><input type="password" name="password" autocomplete="new-password" minlength="8" required /><span class="muted">At least 8 characters.</span></label>
+      <label class="stack" style="gap:4px"><strong>Confirm new password</strong><input type="password" name="confirm" autocomplete="new-password" minlength="8" required /></label>
+      <button class="btn" type="submit">Save new password</button>
+      <div id="reset-msg" aria-live="polite"></div>
+    </form>`;
+  const form = view.querySelector("#reset-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const msg = form.querySelector("#reset-msg");
+    if (form.password.value !== form.confirm.value) {
+      msg.innerHTML = `<div class="notice warn">The passwords don't match.</div>`;
+      return;
+    }
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    try {
+      user = (await api("/api/password/reset", { method: "POST", body: { token, password: form.password.value } })).user;
+      updateAccountNav();
+      await syncProjects();
+      view.innerHTML = `<h1>Password updated</h1><div class="notice ok">You're signed in. For your security, other devices have been signed out.</div><p><a class="btn" href="#/account">Go to my account</a></p>`;
+    } catch (err) {
+      msg.innerHTML = `<div class="notice warn">${esc(err.message)}${err.code === "bad_token" ? ` <a href="#/forgot">Request a new link</a>.` : ""}</div>`;
+      btn.disabled = false;
+    }
+  });
+}
+
 function authForm(mode) {
   const signup = mode === "signup";
   view.innerHTML = `
@@ -489,6 +582,7 @@ function authForm(mode) {
       <label class="stack" style="gap:4px"><strong>Email</strong><input type="text" inputmode="email" name="email" autocomplete="email" required /></label>
       <label class="stack" style="gap:4px"><strong>Password</strong><input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="8" required />${signup ? `<span class="muted">At least 8 characters.</span>` : ""}</label>
       <button class="btn" type="submit">${signup ? "Create account" : "Sign in"}</button>
+      ${!signup && config.passwordResetEnabled ? `<a href="#/forgot" style="justify-self:start">Forgot your password?</a>` : ""}
       <div id="auth-msg" aria-live="polite"></div>
       <p class="muted" style="margin:0">${signup ? `Already have an account? <a href="#/account?mode=signin">Sign in</a>` : `New here? <a href="#/account">Create a free account</a>`}</p>
     </form>`;
@@ -506,7 +600,7 @@ function authForm(mode) {
       user = data.user;
       updateAccountNav();
       await syncProjects();
-      location.hash = takeAfterLogin() || "#/account";
+      go(takeAfterLogin() || "#/account");
     } catch (err) {
       form.querySelector("#auth-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
       btn.disabled = false;

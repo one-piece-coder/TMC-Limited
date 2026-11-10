@@ -22,16 +22,25 @@ export async function verifyPassword(password, stored = DUMMY_HASH) {
   return crypto.timingSafeEqual(actual, expected);
 }
 
-const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+export const hashToken = (token) => crypto.createHash("sha256").update(token).digest("hex");
+
+export function validatePassword(password) {
+  return typeof password === "string" && password.length >= 8 && password.length <= 200
+    ? null
+    : "Password must be at least 8 characters.";
+}
+
+export function newToken() {
+  return crypto.randomBytes(32).toString("base64url");
+}
 
 export function validateCredentials({ email, password } = {}) {
   const cleanEmail = typeof email === "string" ? email.trim().toLowerCase() : "";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(cleanEmail) || cleanEmail.length > 254) {
     return { error: "Enter a valid email address." };
   }
-  if (typeof password !== "string" || password.length < 8 || password.length > 200) {
-    return { error: "Password must be at least 8 characters." };
-  }
+  const passwordError = validatePassword(password);
+  if (passwordError) return { error: passwordError };
   return { email: cleanEmail, password };
 }
 
@@ -48,7 +57,7 @@ const cookieSecure = () =>
   process.env.COOKIE_SECURE ? process.env.COOKIE_SECURE === "true" : process.env.NODE_ENV === "production";
 
 export function startSession(db, res, userId) {
-  const token = crypto.randomBytes(32).toString("base64url");
+  const token = newToken();
   const maxAge = SESSION_DAYS * 24 * 60 * 60;
   db.createSession(hashToken(token), userId, Date.now() + maxAge * 1000);
   res.setHeader(

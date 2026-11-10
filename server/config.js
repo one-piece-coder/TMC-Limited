@@ -43,6 +43,9 @@ export function loadConfig(env = process.env) {
     stripePriceId: env.STRIPE_PRICE_ID || "",
     stripeWebhookSecret: env.STRIPE_WEBHOOK_SECRET || "",
     retailers: buildRetailers(env),
+    production: env.NODE_ENV === "production",
+    smtpUrl: env.SMTP_URL || "",
+    emailFrom: env.EMAIL_FROM || "FixIt Home <no-reply@localhost>",
     trustProxy: env.TRUST_PROXY ? (/^\d+$/.test(env.TRUST_PROXY) ? Number(env.TRUST_PROXY) : env.TRUST_PROXY === "true") : false,
   };
 }

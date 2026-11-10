@@ -313,3 +313,80 @@ test("serves the app shell for deep links", async () => {
     assert.match(await page.text(), /FixIt Home/);
   });
 });
+
+// ---------- password reset ----------
+
+function captureMailer() {
+  const sent = [];
+  return { sent, mailer: { enabled: true, send: async (msg) => sent.push(msg) } };
+}
+const tick = () => new Promise((r) => setTimeout(r, 20));
+const tokenFrom = (msg) => msg.text.match(/#\/reset\?token=([\w-]+)/)[1];
+
+test("password reset: emails a one-time link, changes the password, signs out other devices", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app } = makeApp({ mailer, config: { appUrl: "https://fixit.example" } });
+  await withServer(app, async (base) => {
+    const phone = client(base);
+    const laptop = client(base);
+    await phone.post("/api/signup", { email: "pat@example.com", password: "old-password" });
+    await laptop.post("/api/login", { email: "pat@example.com", password: "old-password" });
+
+    // Unknown emails get the same answer and no email.
+    const unknown = await client(base).post("/api/password/forgot", { email: "nobody@example.com" });
+    const known = await client(base).post("/api/password/forgot", { email: "PAT@example.com" });
+    assert.equal(unknown.status, 200);
+    assert.deepEqual(unknown.data, known.data);
+    await tick();
+    assert.equal(sent.length, 1);
+    assert.equal(sent[0].to, "pat@example.com");
+    assert.match(sent[0].text, /^https:\/\/fixit\.example\/#\/reset\?token=/m);
+    const token = tokenFrom(sent[0]);
+
+    const anon = client(base);
+    assert.equal((await anon.post("/api/password/reset", { token, password: "short" })).status, 400);
+    assert.equal((await anon.post("/api/password/reset", { token: "wrong", password: "new-password" })).data.code, "bad_token");
+
+    const ok = await anon.post("/api/password/reset", { token, password: "new-password" });
+    assert.equal(ok.status, 200);
+    assert.equal(ok.data.user.email, "pat@example.com");
+    assert.equal((await anon.get("/api/me")).data.user.email, "pat@example.com");
+
+    // The link only works once, existing sessions are signed out, and only the new password works.
+    assert.equal((await anon.post("/api/password/reset", { token, password: "another-pass" })).status, 400);
+    assert.equal((await phone.get("/api/me")).data.user, null);
+    assert.equal((await laptop.get("/api/me")).data.user, null);
+    assert.equal((await client(base).post("/api/login", { email: "pat@example.com", password: "old-password" })).status, 401);
+    assert.equal((await client(base).post("/api/login", { email: "pat@example.com", password: "new-password" })).status, 200);
+  });
+});
+
+test("password reset: a newer link replaces the old one, and links expire", async () => {
+  const { sent, mailer } = captureMailer();
+  const { app, db } = makeApp({ mailer });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    await c.post("/api/signup", { email: "pat@example.com", password: "old-password" });
+    await c.post("/api/password/forgot", { email: "pat@example.com" });
+    await c.post("/api/password/forgot", { email: "pat@example.com" });
+    await tick();
+    const [first, second] = sent.map(tokenFrom);
+    assert.equal((await c.post("/api/password/reset", { token: first, password: "new-password" })).status, 400);
+
+    db.raw.exec("UPDATE password_resets SET expires_at = 0");
+    assert.equal((await c.post("/api/password/reset", { token: second, password: "new-password" })).status, 400);
+  });
+});
+
+test("password reset is off in production without email or APP_URL", async () => {
+  const { mailer } = captureMailer();
+  const { app } = makeApp({ mailer, config: { production: true, appUrl: "" } });
+  await withServer(app, async (base) => {
+    const c = client(base);
+    assert.equal((await c.get("/api/config")).data.passwordResetEnabled, false);
+    assert.equal((await c.post("/api/password/forgot", { email: "pat@example.com" })).status, 503);
+  });
+  const { createMailer } = await import("../server/email.js");
+  assert.equal(createMailer({ production: true, smtpUrl: "" }).enabled, false);
+  assert.equal(createMailer({ production: false, smtpUrl: "" }).enabled, true);
+});

@@ -6,9 +6,13 @@ import Stripe from "stripe";
 import { aiConfigured, identifyAppliance, InputError, MODEL } from "./identify.js";
 import { openDatabase } from "./db.js";
 import { loadConfig } from "./config.js";
+import { createMailer, passwordResetEmail } from "./email.js";
 import {
   endSession,
   hashPassword,
+  hashToken,
+  newToken,
+  validatePassword,
   loadUser,
   requireJson,
   requireUser,
@@ -21,6 +25,7 @@ import { rateLimit } from "./rateLimit.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
+const RESET_MINUTES = 60;
 const PROJECT_KEY = /^[a-z0-9-]{1,60}\/[a-z0-9-]{1,80}$/;
 
 export function createApp({
@@ -29,6 +34,7 @@ export function createApp({
   identify = identifyAppliance,
   isAiConfigured = aiConfigured,
   stripe = config.stripeSecretKey ? new Stripe(config.stripeSecretKey) : null,
+  mailer = createMailer(config),
 } = {}) {
   const app = express();
   app.disable("x-powered-by");
@@ -63,6 +69,7 @@ export function createApp({
       proScansPerMonth: config.proScansPerMonth,
       proPriceLabel: config.proPriceLabel,
       retailers: config.retailers,
+      passwordResetEnabled: resetEnabled,
     });
   });
 
@@ -101,6 +108,49 @@ export function createApp({
       db.purgeExpiredSessions();
       startSession(db, res, user.id);
       res.json({ user: publicUser(user) });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  // ---------- password reset ----------
+
+  // Always answers the same way so the form can't be used to find out who has an account.
+  // In production the link must use APP_URL: building it from the Host header would let an
+  // attacker forge the header and get a victim's reset link pointed at their own site.
+  const resetEnabled = mailer.enabled && Boolean(config.appUrl || !config.production);
+  const FORGOT_REPLY = { ok: true, message: "If that email has an account, we've sent a reset link. Check your inbox." };
+
+  app.post("/api/password/forgot", authLimiter, (req, res) => {
+    if (!resetEnabled) return res.status(503).json({ error: "Password reset isn't available yet." });
+    const email = typeof req.body?.email === "string" ? req.body.email.trim().toLowerCase() : "";
+    const user = email ? db.userByEmail(email) : null;
+    if (user) {
+      const token = newToken();
+      db.createPasswordReset(user.id, hashToken(token), Date.now() + RESET_MINUTES * 60_000);
+      const base = config.appUrl || `${req.protocol}://${req.get("host")}`;
+      // The token sits after "#", so browsers never send it to servers or in Referer headers.
+      const link = `${base}/#/reset?token=${token}`;
+      // Not awaited, so response time doesn't reveal whether the account exists.
+      Promise.resolve(mailer.send(passwordResetEmail({ to: user.email, link, minutes: RESET_MINUTES }))).catch((err) =>
+        console.error("Couldn't send password reset email:", err.message),
+      );
+    }
+    res.json(FORGOT_REPLY);
+  });
+
+  app.post("/api/password/reset", authLimiter, async (req, res, next) => {
+    const token = typeof req.body?.token === "string" ? req.body.token : "";
+    const passwordError = validatePassword(req.body?.password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+    const userId = token ? db.resetTokenUserId(hashToken(token)) : null;
+    if (!userId) {
+      return res.status(400).json({ error: "This reset link is invalid or has expired. Request a new one.", code: "bad_token" });
+    }
+    try {
+      db.resetPassword(userId, await hashPassword(req.body.password));
+      startSession(db, res, userId);
+      res.json({ user: publicUser(db.userById(userId)) });
     } catch (err) {
       next(err);
     }
@@ -208,5 +258,9 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     console.log(`FixIt Home running at http://localhost:${port}`);
     if (!aiConfigured()) console.log("ANTHROPIC_API_KEY not set: photo identification disabled, guided mode only.");
     if (!config.stripeSecretKey || !config.stripePriceId) console.log("Stripe not configured: upgrades disabled.");
+    if (!config.smtpUrl) {
+      console.log(config.production ? "SMTP_URL not set: password reset disabled." : "SMTP_URL not set: reset emails print here.");
+    }
+    if (config.production && !config.appUrl) console.log("APP_URL not set: password reset disabled.");
   });
 }
