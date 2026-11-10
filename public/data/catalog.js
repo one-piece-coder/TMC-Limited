@@ -1,6 +1,7 @@
 // Repair catalog shared by the browser app and the server.
 //
 // Each appliance has a list of repairs. Each repair has:
+//   title        search-friendly page title, phrased the way people search
 //   symptom      what the homeowner notices
 //   cause        the usual culprit
 //   difficulty   1 (easy) – 3 (advanced)
@@ -21,6 +22,16 @@ export const SAFETY_BASICS = [
   "Wear safety glasses and work gloves; sheet-metal edges inside appliances are sharp.",
 ];
 
+export const HAZARD_TEXT = {
+  electrical: "Electrical: unplug it or switch off the breaker first.",
+  gas: "Gas: shut the gas valve. If you smell gas, leave and call your utility.",
+  water: "Water: shut off the supply valve and keep towels handy.",
+  fire: "Fire: clogged dryer vents are a fire risk, so clean them yearly.",
+  scald: "Scalding: water heater contents can be extremely hot.",
+  burn: "Burns: let surfaces cool completely before touching.",
+  cutting: "Blades: never put your hand inside a disposal.",
+};
+
 export const CATALOG = [
   {
     id: "refrigerator",
@@ -35,6 +46,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "fridge-not-cooling",
+        title: "How to Fix a Refrigerator That's Not Cooling",
         symptom: "Not cooling, but the light and fans run",
         cause: "Dirty condenser coils or a failed condenser fan",
         difficulty: 1,
@@ -62,6 +74,7 @@ export const CATALOG = [
       },
       {
         id: "fridge-leaking",
+        title: "How to Fix a Refrigerator Leaking Water",
         symptom: "Water pooling on the floor or under the crisper drawers",
         cause: "Clogged defrost drain line",
         difficulty: 1,
@@ -82,6 +95,7 @@ export const CATALOG = [
       },
       {
         id: "fridge-ice-maker",
+        title: "How to Fix an Ice Maker That's Not Making Ice",
         symptom: "Ice maker stopped making ice",
         cause: "Frozen fill tube, clogged water filter, or a failed water inlet valve",
         difficulty: 2,
@@ -117,6 +131,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "dishwasher-not-draining",
+        title: "How to Fix a Dishwasher That Won't Drain",
         symptom: "Standing water in the bottom after a cycle",
         cause: "Clogged filter, blocked drain hose, or a sink garbage-disposal knockout plug",
         difficulty: 1,
@@ -140,6 +155,7 @@ export const CATALOG = [
       },
       {
         id: "dishwasher-dirty-dishes",
+        title: "How to Fix a Dishwasher That Isn't Cleaning Dishes",
         symptom: "Dishes come out dirty or gritty",
         cause: "Clogged spray arms or filter",
         difficulty: 1,
@@ -159,6 +175,7 @@ export const CATALOG = [
       },
       {
         id: "dishwasher-door-leak",
+        title: "How to Fix a Dishwasher Leaking From the Door",
         symptom: "Water leaking from the door",
         cause: "Worn or dirty door gasket",
         difficulty: 1,
@@ -191,6 +208,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "washer-wont-drain",
+        title: "How to Fix a Washing Machine That Won't Drain or Spin",
         symptom: "Won't drain or spin; clothes stay soaked",
         cause: "Clogged drain pump filter or kinked drain hose",
         difficulty: 1,
@@ -211,6 +229,7 @@ export const CATALOG = [
       },
       {
         id: "washer-shaking",
+        title: "How to Stop a Washing Machine From Shaking During Spin",
         symptom: "Shakes violently or walks across the floor during spin",
         cause: "Unlevel feet, unbalanced load, or worn suspension parts",
         difficulty: 2,
@@ -233,6 +252,7 @@ export const CATALOG = [
       },
       {
         id: "washer-smell",
+        title: "How to Get Rid of a Smelly Washing Machine",
         symptom: "Musty or mildew smell",
         cause: "Residue and mold in the door seal and dispenser",
         difficulty: 1,
@@ -265,6 +285,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "dryer-no-heat",
+        title: "How to Fix a Dryer That Won't Heat",
         symptom: "Tumbles but doesn't heat, or takes multiple cycles",
         cause: "Clogged exhaust vent, blown thermal fuse, or failed heating element",
         difficulty: 2,
@@ -291,6 +312,7 @@ export const CATALOG = [
       },
       {
         id: "dryer-squeaking",
+        title: "How to Fix a Squeaking or Thumping Dryer",
         symptom: "Squealing, thumping, or rumbling while running",
         cause: "Worn drum rollers, idler pulley, or drive belt",
         difficulty: 2,
@@ -324,6 +346,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "water-heater-no-hot-water-electric",
+        title: "How to Fix an Electric Water Heater With No Hot Water",
         symptom: "No hot water (electric)",
         cause: "Tripped high-limit reset or failed heating element",
         difficulty: 2,
@@ -350,6 +373,7 @@ export const CATALOG = [
       },
       {
         id: "water-heater-flush",
+        title: "How to Flush a Water Heater (Rumbling Noise Fix)",
         symptom: "Popping/rumbling noise or reduced hot water",
         cause: "Sediment buildup in the bottom of the tank",
         difficulty: 1,
@@ -370,6 +394,7 @@ export const CATALOG = [
       },
       {
         id: "water-heater-pilot",
+        title: "How to Relight a Gas Water Heater Pilot Light",
         symptom: "No hot water (gas) — pilot light is out",
         cause: "Pilot blown out or a dirty/failed thermocouple",
         difficulty: 2,
@@ -405,6 +430,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "disposal-jammed",
+        title: "How to Fix a Garbage Disposal That Hums but Won't Spin",
         symptom: "Hums but doesn't spin",
         cause: "Jammed flywheel",
         difficulty: 1,
@@ -425,6 +451,7 @@ export const CATALOG = [
       },
       {
         id: "disposal-leak",
+        title: "How to Fix a Leaking Garbage Disposal",
         symptom: "Leaking underneath",
         cause: "Loose drain connection or failed sink flange seal",
         difficulty: 2,
@@ -457,6 +484,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "oven-not-heating-electric",
+        title: "How to Fix an Electric Oven That Won't Heat",
         symptom: "Electric oven won't heat or bakes unevenly",
         cause: "Burnt-out bake or broil element",
         difficulty: 2,
@@ -477,6 +505,7 @@ export const CATALOG = [
       },
       {
         id: "range-burner-wont-light",
+        title: "How to Fix a Gas Stove Burner That Won't Light",
         symptom: "Gas burner clicks but won't light",
         cause: "Clogged burner ports or a wet/dirty igniter",
         difficulty: 1,
@@ -509,6 +538,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "hvac-weak-airflow",
+        title: "How to Change a Furnace Filter (Weak Airflow Fix)",
         symptom: "Weak airflow or system runs constantly",
         cause: "Clogged air filter",
         difficulty: 1,
@@ -528,6 +558,7 @@ export const CATALOG = [
       },
       {
         id: "hvac-ac-not-cooling",
+        title: "How to Fix an AC Blowing Warm Air",
         symptom: "AC runs but blows warm air",
         cause: "Dirty outdoor condenser coil, tripped breaker, or a frozen indoor coil",
         difficulty: 1,
@@ -551,6 +582,7 @@ export const CATALOG = [
       },
       {
         id: "hvac-thermostat",
+        title: "What to Do When Your Furnace or AC Won't Turn On",
         symptom: "System won't turn on at all",
         cause: "Dead thermostat batteries, tripped breaker, or furnace door safety switch",
         difficulty: 1,
@@ -583,6 +615,7 @@ export const CATALOG = [
     repairs: [
       {
         id: "toilet-running",
+        title: "How to Fix a Running Toilet",
         symptom: "Runs constantly or refills on its own",
         cause: "Worn flapper or misadjusted fill valve",
         difficulty: 1,
@@ -606,6 +639,7 @@ export const CATALOG = [
       },
       {
         id: "toilet-clogged",
+        title: "How to Unclog a Toilet",
         symptom: "Clogged or flushes weakly",
         cause: "Blockage in the trap",
         difficulty: 1,
@@ -635,6 +669,11 @@ export function findAppliance(id) {
 export function findRepair(applianceId, repairId) {
   const appliance = findAppliance(applianceId);
   return appliance ? appliance.repairs.find((r) => r.id === repairId) || null : null;
+}
+
+// Public, search-engine-friendly page for a guide (rendered by the server).
+export function guideUrl(applianceId, repairId) {
+  return repairId ? `/guides/${applianceId}/${repairId}` : `/guides/${applianceId}`;
 }
 
 export function youtubeSearchUrl(query) {

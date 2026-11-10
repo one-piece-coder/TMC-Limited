@@ -306,11 +306,74 @@ test("checkout creates a customer and session; webhooks switch the plan", async 
   });
 });
 
-test("serves the app shell for deep links", async () => {
+test("serves the app at / and a real 404 for unknown paths", async () => {
   const { app } = makeApp();
   await withServer(app, async (base) => {
-    const page = await fetch(`${base}/repair/dryer/dryer-no-heat`);
-    assert.match(await page.text(), /FixIt Home/);
+    assert.match(await (await fetch(`${base}/`)).text(), /id="view"/);
+    const junk = await fetch(`${base}/repair/dryer/dryer-no-heat`);
+    assert.equal(junk.status, 404);
+    assert.match(await junk.text(), /Page not found/);
+  });
+});
+
+// ---------- search-friendly guide pages ----------
+
+test("every guide has a unique search title and the homepage links to every appliance page", async () => {
+  const fs = await import("node:fs");
+  const titles = CATALOG.flatMap((a) => a.repairs.map((r) => r.title));
+  assert.ok(titles.every((t) => typeof t === "string" && t.length >= 15 && t.length <= 70), "titles 15-70 chars");
+  assert.equal(new Set(titles).size, titles.length);
+  const shell = fs.readFileSync(new URL("../public/index.html", import.meta.url), "utf8");
+  for (const a of CATALOG) assert.ok(shell.includes(`href="/guides/${a.id}"`), `footer links ${a.id}`);
+});
+
+test("guide pages are complete, crawlable HTML", async () => {
+  const { app } = makeApp({ config: { appUrl: "https://fixit.example", retailers: buildRetailers({ AMAZON_ASSOCIATE_TAG: "fixit-20" }) } });
+  await withServer(app, async (base) => {
+    const res = await fetch(`${base}/guides/dryer/dryer-no-heat`, { headers: { host: "evil.example" } });
+    assert.equal(res.status, 200);
+    assert.match(res.headers.get("cache-control"), /public/);
+    const html = await res.text();
+    assert.match(html, /<title>How to Fix a Dryer That Won&#39;t Heat \| FixIt Home<\/title>/);
+    assert.match(html, /<meta name="description" content="[^"]{50,160}"/);
+    // Canonical uses APP_URL, never the request's Host header.
+    assert.match(html, /<link rel="canonical" href="https:\/\/fixit\.example\/guides\/dryer\/dryer-no-heat"/);
+    assert.ok(!html.includes("evil.example"));
+    // Content is in the HTML itself, not drawn later by JavaScript.
+    assert.match(html, /Test the thermal fuse for continuity/);
+    assert.ok(!html.includes("app.js"));
+    assert.match(html, /tag=fixit-20/);
+    assert.match(html, /rel="sponsored noopener"/);
+    assert.match(html, /href="\/#\/repair\/dryer\/dryer-no-heat"/);
+
+    const blocks = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs)].map((m) => JSON.parse(m[1]));
+    const howTo = blocks.find((b) => b["@type"] === "HowTo");
+    assert.equal(howTo.step.length, findRepair("dryer", "dryer-no-heat").steps.length);
+    assert.equal(blocks.find((b) => b["@type"] === "BreadcrumbList").itemListElement.length, 3);
+
+    const appliancePage = await (await fetch(`${base}/guides/dryer`)).text();
+    assert.match(appliancePage, /Clothes Dryer Repair Guides/);
+    assert.match(appliancePage, /href="\/guides\/dryer\/dryer-squeaking"/);
+
+    const index = await (await fetch(`${base}/guides`)).text();
+    for (const a of CATALOG) for (const r of a.repairs) assert.ok(index.includes(`href="/guides/${a.id}/${r.id}"`));
+
+    assert.equal((await fetch(`${base}/guides/dryer/nope`)).status, 404);
+    assert.equal((await fetch(`${base}/guides/nope`)).status, 404);
+  });
+});
+
+test("sitemap and robots.txt list every guide", async () => {
+  const { app } = makeApp({ config: { appUrl: "https://fixit.example" } });
+  await withServer(app, async (base) => {
+    const sitemap = await (await fetch(`${base}/sitemap.xml`)).text();
+    const locs = [...sitemap.matchAll(/<loc>(.*?)<\/loc>/g)].map((m) => m[1]);
+    const guideCount = CATALOG.reduce((n, a) => n + 1 + a.repairs.length, 0);
+    assert.equal(locs.length, guideCount + 2);
+    assert.ok(locs.includes("https://fixit.example/guides/toilet/toilet-running"));
+    const robots = await (await fetch(`${base}/robots.txt`)).text();
+    assert.match(robots, /Disallow: \/api\//);
+    assert.match(robots, /Sitemap: https:\/\/fixit\.example\/sitemap\.xml/);
   });
 });
 

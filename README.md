@@ -51,6 +51,27 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 3. Turn on the Customer Portal (Settings → Billing → Customer portal). The "Manage subscription" button uses it to let users cancel or update their card.
 4. Test locally with the Stripe CLI: `stripe listen --forward-to localhost:3000/api/stripe/webhook`, then pay with card `4242 4242 4242 4242`.
 
+## Search-friendly guide pages
+
+Every guide also has its own address that search engines can index. The server builds these pages as complete HTML, so they load fast and need no JavaScript:
+
+| Page | Example |
+|---|---|
+| All guides | `/guides` |
+| One appliance | `/guides/dryer` |
+| One repair | `/guides/dryer/dryer-no-heat` |
+| Sitemap for search engines | `/sitemap.xml` |
+| Crawler rules | `/robots.txt` |
+
+Each repair page has a search-style title ("How to Fix a Dryer That Won't Heat"), a description sized for search results, a canonical link, social-sharing tags, and structured data (HowTo steps plus breadcrumbs). It also includes the steps, safety notes, tools and parts with affiliate links, and videos. A "Start this repair in the app" button opens the interactive version, with checklists, saved progress and exact-fit parts. The app's repair screens have a **Share guide** button that copies the page's address.
+
+**To get listed on Google:**
+1. Set `APP_URL` to your real domain. Canonical links and the sitemap use it, so pages never point at the wrong host.
+2. Add your site to [Google Search Console](https://search.google.com/search-console) and submit `https://<your-domain>/sitemap.xml`. Do the same in Bing Webmaster Tools, which also covers DuckDuckGo and Yahoo.
+3. New sites usually take a few weeks to show up. Search Console shows which searches you appear for. Use it to decide which guides to write next.
+
+New guides added to `public/data/catalog.js` get a page and a sitemap entry automatically. Give each one a `title` worded the way people search.
+
 ## Password reset
 
 "Forgot your password?" on the sign-in page emails a reset link. The link works once and expires after an hour, and asking again cancels the previous one. Setting a new password signs the user out on every other device.
@@ -84,6 +105,7 @@ Every feature turns on only when its keys are set. With no keys at all, the app 
 | `server/billing.js` | Scan quotas, Stripe Checkout, Customer Portal, webhooks |
 | `server/db.js` | SQLite storage: users, sessions, scans, projects |
 | `server/rateLimit.js` | In-memory rate limiter |
+| `server/pages.js` | Search-friendly guide pages, sitemap and robots.txt |
 | `server/config.js` | Environment configuration |
 | `test/` | `node --test` suite |
 

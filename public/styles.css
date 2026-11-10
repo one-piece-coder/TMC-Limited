@@ -376,3 +376,17 @@ a.card.feature:hover { border-color: var(--tone); }
   .hero-bold { padding: 28px 20px 22px; }
   .hero-art { font-size: 3.2rem; }
 }
+
+/* ---------- server-rendered guide pages ---------- */
+.lead { font-size: 1.1rem; margin: 0 0 8px; }
+.guide-cta { display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }
+.card-heading { font-size: 1.05rem; margin: 0 0 8px; }
+.guide h2 { scroll-margin-top: 80px; }
+.guide-group { margin-bottom: 16px; }
+.guide-group h3 a { text-decoration: none; color: var(--text); }
+.guide-group ul { margin: 4px 0 0; padding-left: 20px; }
+.guide-group li { margin: 4px 0; }
+.footer-guides { display: flex; flex-wrap: wrap; gap: 4px 14px; padding: 0; margin: 8px 0 16px; list-style: none; }
+.footer-guides a { color: var(--muted); }
+.share-link { font-size: 0.9rem; }
+.two-col .shop-list { padding-left: 0; }

@@ -22,6 +22,7 @@ import {
 } from "./auth.js";
 import { createBillingRouter, createWebhookHandler, usageFor } from "./billing.js";
 import { rateLimit } from "./rateLimit.js";
+import { createGuidePages, renderNotFoundPage } from "./pages.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const PUBLIC_DIR = path.join(__dirname, "..", "public");
@@ -246,8 +247,14 @@ export function createApp({
     res.status(500).json({ error: "Something went wrong. Please try again." });
   });
 
+  app.use(createGuidePages({ config }));
   app.use(express.static(PUBLIC_DIR));
-  app.get("/{*splat}", (_req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
+  // The app itself uses #/ routes, so any other path really doesn't exist. A true 404
+  // (rather than serving the app) keeps search engines from indexing junk URLs.
+  app.use((req, res) => {
+    const origin = config.appUrl || `${req.protocol}://${req.get("host")}`;
+    res.status(404).type("html").send(renderNotFoundPage({ origin }));
+  });
   return app;
 }
 

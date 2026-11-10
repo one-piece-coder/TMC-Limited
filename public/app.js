@@ -1,7 +1,9 @@
 import {
   CATALOG,
+  HAZARD_TEXT,
   SAFETY_BASICS,
   findAppliance,
+  guideUrl,
   findRepair,
   searchCatalog,
   youtubeEmbedUrl,
@@ -11,15 +13,6 @@ import { FALLBACK_RETAILERS, cleanItemName, partQuery, shopLinks } from "./data/
 
 const view = document.getElementById("view");
 const DIFFICULTY = { 1: "Easy", 2: "Moderate", 3: "Advanced" };
-const HAZARD_TEXT = {
-  electrical: "Electrical — unplug or switch off the breaker first.",
-  gas: "Gas — shut the gas valve. If you smell gas, leave and call your utility.",
-  water: "Water — shut off the supply valve and keep towels handy.",
-  fire: "Fire — clogged dryer vents are a fire risk; clean them yearly.",
-  scald: "Scalding — water heater contents can be extremely hot.",
-  burn: "Burns — let surfaces cool completely before touching.",
-  cutting: "Blades — never put your hand inside a disposal.",
-};
 
 let config = { aiEnabled: false, billingEnabled: false, freeScansPerMonth: 3, retailers: FALLBACK_RETAILERS };
 let user = null;
@@ -338,6 +331,7 @@ function repair(applianceId, repairId) {
     <div style="margin:16px 0; display:flex; gap:8px; flex-wrap:wrap">
       <button class="btn" id="save-btn">${project ? "✓ Saved to My Projects" : "Start this project"}</button>
       ${r.videos[0] ? `<a class="btn secondary" href="#videos">▶ Watch tutorial</a>` : ""}
+      <button class="btn secondary" id="share-btn" type="button">🔗 Share guide</button>
     </div>
 
     <div class="notice warn"><strong>Safety first</strong><ul>${a.hazards.map((h) => `<li>${esc(HAZARD_TEXT[h])}</li>`).join("")}</ul></div>
@@ -389,6 +383,18 @@ function repair(applianceId, repairId) {
   });
 
   view.querySelector("#save-btn").addEventListener("click", persist);
+  view.querySelector("#share-btn").addEventListener("click", async (e) => {
+    const url = location.origin + guideUrl(a.id, r.id);
+    try {
+      if (navigator.share) await navigator.share({ title: r.title, url });
+      else {
+        await navigator.clipboard.writeText(url);
+        e.target.textContent = "✓ Link copied";
+      }
+    } catch {
+      /* user cancelled or clipboard blocked */
+    }
+  });
   view.querySelectorAll("[data-step]").forEach((box) =>
     box.addEventListener("change", () => {
       const i = Number(box.dataset.step);
