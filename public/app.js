@@ -7,6 +7,7 @@ import {
   youtubeEmbedUrl,
   youtubeSearchUrl,
 } from "./data/catalog.js";
+import { FALLBACK_RETAILERS, cleanItemName, partQuery, shopLinks } from "./data/parts.js";
 
 const view = document.getElementById("view");
 const DIFFICULTY = { 1: "Easy", 2: "Moderate", 3: "Advanced" };
@@ -20,14 +21,41 @@ const HAZARD_TEXT = {
   cutting: "Blades — never put your hand inside a disposal.",
 };
 
-let config = { aiEnabled: false };
-fetch("/api/config")
-  .then((r) => (r.ok ? r.json() : config))
-  .then((c) => {
-    config = c;
-    if (currentRoute().name === "identify") render();
-  })
-  .catch(() => {});
+let config = { aiEnabled: false, billingEnabled: false, freeScansPerMonth: 3, retailers: FALLBACK_RETAILERS };
+let user = null;
+
+// ---------- API ----------
+
+async function api(path, { method = "GET", body } = {}) {
+  const res = await fetch(path, {
+    method,
+    credentials: "same-origin",
+    headers: method === "GET" ? {} : { "Content-Type": "application/json" },
+    body: method === "GET" ? undefined : JSON.stringify(body ?? {}),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) {
+    const err = new Error(data.error || "Something went wrong.");
+    Object.assign(err, { status: res.status, code: data.code, data });
+    throw err;
+  }
+  return data;
+}
+
+async function refreshUser() {
+  try {
+    user = (await api("/api/me")).user;
+  } catch {
+    user = null;
+  }
+  updateAccountNav();
+  return user;
+}
+
+function updateAccountNav() {
+  const link = document.querySelector('[data-nav="account"]');
+  if (link) link.textContent = user ? (user.plan === "pro" ? "Account · Pro" : "Account") : "Sign in";
+}
 
 // ---------- helpers ----------
 
@@ -52,9 +80,93 @@ const storage = {
   },
 };
 
+// Projects live in localStorage and, when signed in, are synced to the account.
 const getProjects = () => storage.get("fixit.projects", {});
 const saveProjects = (p) => storage.set("fixit.projects", p);
 const projectKey = (a, r) => `${a}/${r}`;
+
+function putProject(project) {
+  saveProjects({ ...getProjects(), [projectKey(project.applianceId, project.repairId)]: project });
+  if (user) {
+    api(`/api/projects/${project.applianceId}/${project.repairId}`, { method: "PUT", body: project }).catch(() => {});
+  }
+}
+
+function removeProject(key) {
+  const all = getProjects();
+  delete all[key];
+  saveProjects(all);
+  if (user) api(`/api/projects/${key}`, { method: "DELETE" }).catch(() => {});
+}
+
+// Merge local and account projects (newest wins), then push local-only/newer ones up.
+async function syncProjects() {
+  if (!user) return;
+  try {
+    const { projects: remote } = await api("/api/projects");
+    const local = getProjects();
+    const merged = { ...local };
+    for (const p of remote) {
+      if (!merged[p.key] || merged[p.key].updated < p.updated) {
+        merged[p.key] = { applianceId: p.applianceId, repairId: p.repairId, done: p.done, updated: p.updated };
+      }
+    }
+    saveProjects(merged);
+    const remoteByKey = Object.fromEntries(remote.map((p) => [p.key, p]));
+    for (const [key, p] of Object.entries(merged)) {
+      if (!remoteByKey[key] || remoteByKey[key].updated < p.updated) {
+        api(`/api/projects/${key}`, { method: "PUT", body: p }).catch(() => {});
+      }
+    }
+  } catch {
+    /* offline — local copy still works */
+  }
+}
+
+// Where to send the user after they sign in (e.g. back to the scanner).
+function rememberAfterLogin(hash) {
+  try {
+    sessionStorage.setItem("fixit.afterLogin", hash);
+  } catch {
+    /* ignore */
+  }
+}
+function takeAfterLogin() {
+  try {
+    const v = sessionStorage.getItem("fixit.afterLogin");
+    sessionStorage.removeItem("fixit.afterLogin");
+    return v;
+  } catch {
+    return null;
+  }
+}
+
+// Model numbers remembered per appliance, used to find exact-fit parts.
+const getModels = () => storage.get("fixit.models", {});
+const setModel = (applianceId, info) => storage.set("fixit.models", { ...getModels(), [applianceId]: info });
+
+const AFFILIATE_NOTE = `<p class="muted small-print">We may earn a commission from purchases made through these links, at no extra cost to you.</p>`;
+
+function partsHtml(parts, ctx) {
+  if (!parts.length) return `<p class="muted">No parts needed.</p>`;
+  return `<ul class="shop-list">${parts
+    .map((p) => {
+      const links = shopLinks(partQuery(p, ctx), config.retailers);
+      return `<li><span>${esc(p)}</span><span class="shop-links">${links
+        .map((l) => `<a class="btn small secondary" href="${esc(l.url)}" target="_blank" rel="sponsored noopener">Buy · ${esc(l.retailer)}</a>`)
+        .join("")}</span></li>`;
+    })
+    .join("")}</ul>`;
+}
+
+function toolsHtml(tools) {
+  return `<ul class="shop-list">${tools
+    .map((t) => {
+      const [link] = shopLinks(cleanItemName(t), config.retailers);
+      return `<li><span>${esc(t)}</span>${link ? `<a class="shop-link" href="${esc(link.url)}" target="_blank" rel="sponsored noopener">Shop</a>` : ""}</li>`;
+    })
+    .join("")}</ul>`;
+}
 
 function difficultyPill(d) {
   return `<span class="pill d${d}">${DIFFICULTY[d]}</span>`;
@@ -84,8 +196,9 @@ function videoBlock(v) {
 // ---------- routing ----------
 
 function currentRoute() {
-  const parts = location.hash.replace(/^#\/?/, "").split("/").filter(Boolean);
-  return { name: parts[0] || "home", params: parts.slice(1).map(decodeURIComponent) };
+  const [path, qs = ""] = location.hash.replace(/^#\/?/, "").split("?");
+  const parts = path.split("/").filter(Boolean);
+  return { name: parts[0] || "home", params: parts.slice(1).map(decodeURIComponent), query: new URLSearchParams(qs) };
 }
 
 function render() {
@@ -94,7 +207,7 @@ function render() {
     const active = a.dataset.nav === name || (a.dataset.nav === "browse" && ["appliance", "repair"].includes(name));
     a.classList.toggle("active", active);
   });
-  const views = { home, identify, browse, appliance, repair, saved, search };
+  const views = { home, identify, browse, appliance, repair, saved, search, account };
   (views[name] || home)(...params);
 }
 
@@ -205,9 +318,15 @@ function repair(applianceId, repairId) {
     <div class="notice warn"><strong>Safety first</strong><ul>${a.hazards.map((h) => `<li>${esc(HAZARD_TEXT[h])}</li>`).join("")}</ul></div>
 
     <div class="two-col" style="margin-top:16px">
-      <div class="card"><h3>🧰 Tools</h3><ul>${r.tools.map((t) => `<li>${esc(t)}</li>`).join("")}</ul></div>
-      <div class="card"><h3>🔩 Parts</h3>${r.parts.length ? `<ul>${r.parts.map((p) => `<li>${esc(p)}</li>`).join("")}</ul>` : `<p class="muted">No parts needed.</p>`}<p class="muted" style="margin-bottom:0">Match parts to the model number on your appliance's label.</p></div>
+      <div class="card"><h3>🧰 Tools</h3>${toolsHtml(r.tools)}</div>
+      <div class="card"><h3>🔩 Parts</h3>
+        ${r.parts.length ? `<label class="model-field"><span>Your model number <span class="muted">(for exact-fit parts)</span></span>
+          <input type="text" id="model-number" value="${esc(getModels()[a.id]?.modelNumber || "")}" placeholder="e.g. WED4815EW1" autocomplete="off" /></label>
+          <p class="muted" style="margin:4px 0 0">${esc(a.identifyHints[a.identifyHints.length - 1])}</p>` : ""}
+        <div id="parts-list">${partsHtml(r.parts, getModels()[a.id] || {})}</div>
+      </div>
     </div>
+    ${r.parts.length || r.tools.length ? AFFILIATE_NOTE : ""}
 
     <h2>Steps</h2>
     <div class="progress" aria-hidden="true"><div id="progress-bar"></div></div>
@@ -233,11 +352,16 @@ function repair(applianceId, repairId) {
   updateProgress();
 
   const persist = () => {
-    const all = getProjects();
-    all[key] = { applianceId: a.id, repairId: r.id, done: [...done], updated: Date.now() };
-    saveProjects(all);
+    putProject({ applianceId: a.id, repairId: r.id, done: [...done], updated: Date.now() });
     view.querySelector("#save-btn").textContent = "✓ Saved to My Projects";
   };
+
+  const modelInput = view.querySelector("#model-number");
+  modelInput?.addEventListener("input", () => {
+    const info = { ...(getModels()[a.id] || {}), modelNumber: modelInput.value.trim().slice(0, 40) };
+    setModel(a.id, info);
+    view.querySelector("#parts-list").innerHTML = partsHtml(r.parts, info);
+  });
 
   view.querySelector("#save-btn").addEventListener("click", persist);
   view.querySelectorAll("[data-step]").forEach((box) =>
@@ -266,15 +390,128 @@ function saved() {
       </div>`;
     })
     .join("");
-  view.innerHTML = `<h1>My Projects</h1>${items ? `<div class="list">${items}</div>` : `<p class="muted">No projects yet. Open any repair guide and tap “Start this project” to track your progress here.</p><a class="btn" href="#/browse">Browse repairs</a>`}`;
+  const syncNote = user
+    ? `<p class="muted">Synced to ${esc(user.email)}.</p>`
+    : `<div class="notice">Projects are saved on this device only. <a href="#/account">Create a free account</a> to sync them to your phone and computer.</div>`;
+  view.innerHTML = `<h1>My Projects</h1>${syncNote}${items ? `<div class="list" style="margin-top:12px">${items}</div>` : `<p class="muted">No projects yet. Open any repair guide and tap “Start this project” to track your progress here.</p><a class="btn" href="#/browse">Browse repairs</a>`}`;
   view.querySelectorAll("[data-remove]").forEach((btn) =>
     btn.addEventListener("click", () => {
-      const all = getProjects();
-      delete all[btn.dataset.remove];
-      saveProjects(all);
+      removeProject(btn.dataset.remove);
       saved();
     }),
   );
+}
+
+// ---------- account ----------
+
+function account() {
+  const { query } = currentRoute();
+  if (!user) return authForm(query.get("mode") === "signin" ? "signin" : "signup");
+
+  const { usage } = user;
+  const pct = usage.limit ? Math.min(100, Math.round((usage.used / usage.limit) * 100)) : 100;
+  const isPro = user.plan === "pro";
+  const checkoutDone = query.get("checkout") === "success";
+
+  view.innerHTML = `
+    <h1>Your account</h1>
+    ${checkoutDone && !isPro ? `<div class="notice ok" id="checkout-wait" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Payment received. Activating Pro…</div>` : ""}
+    ${checkoutDone && isPro ? `<div class="notice ok">🎉 Welcome to Pro! Thanks for supporting FixIt Home.</div>` : ""}
+    <div class="card stack" style="margin-top:12px">
+      <div><strong>${esc(user.email)}</strong></div>
+      <div>Plan: <span class="pill ${isPro ? "d1" : ""}">${isPro ? "Pro" : "Free"}</span></div>
+      <div>
+        <div style="display:flex;justify-content:space-between"><span>Photo scans this month</span><span>${usage.used} / ${usage.limit}</span></div>
+        <div class="progress"><div style="width:${pct}%"></div></div>
+        <p class="muted" style="margin:6px 0 0">Scans reset on the 1st of each month.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        ${!isPro && config.billingEnabled ? `<button class="btn" id="upgrade-btn">Upgrade to Pro · ${esc(config.proPriceLabel)}</button>` : ""}
+        ${user.hasBilling && config.billingEnabled ? `<button class="btn secondary" id="portal-btn">Manage subscription</button>` : ""}
+        <button class="btn secondary" id="logout-btn">Sign out</button>
+      </div>
+      <div id="account-msg" aria-live="polite"></div>
+    </div>
+    ${!isPro ? proPitch() : ""}`;
+
+  const msg = view.querySelector("#account-msg");
+  const redirect = (path) => async (e) => {
+    e.target.disabled = true;
+    try {
+      location.href = (await api(path, { method: "POST" })).url;
+    } catch (err) {
+      msg.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      e.target.disabled = false;
+    }
+  };
+  view.querySelector("#upgrade-btn")?.addEventListener("click", redirect("/api/billing/checkout"));
+  view.querySelector("#portal-btn")?.addEventListener("click", redirect("/api/billing/portal"));
+  view.querySelector("#logout-btn").addEventListener("click", async () => {
+    await api("/api/logout", { method: "POST" }).catch(() => {});
+    user = null;
+    updateAccountNav();
+    location.hash = "#/";
+  });
+
+  // Stripe's webhook can land a few seconds after the redirect back, so poll briefly.
+  if (checkoutDone && !isPro) {
+    let tries = 0;
+    const poll = async () => {
+      if (currentRoute().name !== "account") return;
+      await refreshUser();
+      if (user?.plan === "pro") return account();
+      if (++tries < 10) setTimeout(poll, 2000);
+      else view.querySelector("#checkout-wait").innerHTML = "Payment received. Pro will activate shortly. Refresh this page in a minute.";
+    };
+    setTimeout(poll, 1500);
+  }
+}
+
+function proPitch() {
+  return `<div class="card pro-card" style="margin-top:16px">
+    <h3>⭐ FixIt Pro</h3>
+    <ul>
+      <li><strong>${esc(config.proScansPerMonth)} photo scans a month</strong> instead of ${esc(config.freeScansPerMonth)}</li>
+      <li>Scan every appliance in the house, not just the one that broke</li>
+      <li>Every scan reads the brand and model so parts links fit</li>
+      <li>Cancel anytime</li>
+    </ul>
+    ${config.billingEnabled ? "" : `<p class="muted" style="margin:0">Pro upgrades are coming soon.</p>`}
+  </div>`;
+}
+
+function authForm(mode) {
+  const signup = mode === "signup";
+  view.innerHTML = `
+    <h1>${signup ? "Create your free account" : "Welcome back"}</h1>
+    <p class="muted">${signup ? `Get ${esc(config.freeScansPerMonth)} free photo scans every month and sync your projects across devices.` : "Sign in to scan appliances and sync your projects."}</p>
+    <form class="card stack" id="auth-form" style="max-width:420px">
+      <label class="stack" style="gap:4px"><strong>Email</strong><input type="text" inputmode="email" name="email" autocomplete="email" required /></label>
+      <label class="stack" style="gap:4px"><strong>Password</strong><input type="password" name="password" autocomplete="${signup ? "new-password" : "current-password"}" minlength="8" required />${signup ? `<span class="muted">At least 8 characters.</span>` : ""}</label>
+      <button class="btn" type="submit">${signup ? "Create account" : "Sign in"}</button>
+      <div id="auth-msg" aria-live="polite"></div>
+      <p class="muted" style="margin:0">${signup ? `Already have an account? <a href="#/account?mode=signin">Sign in</a>` : `New here? <a href="#/account">Create a free account</a>`}</p>
+    </form>`;
+
+  const form = view.querySelector("#auth-form");
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const btn = form.querySelector("button");
+    btn.disabled = true;
+    try {
+      const data = await api(signup ? "/api/signup" : "/api/login", {
+        method: "POST",
+        body: { email: form.email.value, password: form.password.value },
+      });
+      user = data.user;
+      updateAccountNav();
+      await syncProjects();
+      location.hash = takeAfterLogin() || "#/account";
+    } catch (err) {
+      form.querySelector("#auth-msg").innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      btn.disabled = false;
+    }
+  });
 }
 
 function notFound() {
@@ -287,7 +524,7 @@ function identify() {
   view.innerHTML = `
     <h1>Identify your appliance</h1>
     <p class="muted">Take a clear photo of the whole appliance, or of its model/serial label for the best match.</p>
-    ${config.aiEnabled ? photoIdentifierHtml() : `<div class="notice">Photo identification isn't enabled on this server yet. Use the guided identifier below.</div>`}
+    ${config.aiEnabled ? (user ? photoIdentifierHtml() : scanSignupHtml()) : `<div class="notice">Photo identification isn't enabled on this server yet. Use the guided identifier below.</div>`}
     <h2>${config.aiEnabled ? "Or answer a quick question" : "Guided identifier"}</h2>
     <p>Where is it in your home?</p>
     <div class="chips" id="rooms">${[...new Set(CATALOG.map((a) => a.category))]
@@ -307,12 +544,33 @@ function identify() {
     }),
   );
 
-  if (config.aiEnabled) wirePhotoIdentifier();
+  view.querySelectorAll("[data-after-login]").forEach((el) =>
+    el.addEventListener("click", () => rememberAfterLogin("#/identify")),
+  );
+  if (config.aiEnabled && user) wirePhotoIdentifier();
+}
+
+function scanSignupHtml() {
+  return `<div class="card stack pro-card">
+    <div style="font-size:2.5rem">📷</div>
+    <h3>Scan your appliance with a photo</h3>
+    <p style="margin:0">Create a free account to get ${esc(config.freeScansPerMonth)} photo scans a month. We'll identify the appliance, read the model number, and match repairs and exact-fit parts.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <a class="btn" data-after-login href="#/account">Create free account</a>
+      <a class="btn secondary" data-after-login href="#/account?mode=signin">Sign in</a>
+    </div>
+  </div>`;
+}
+
+function usageLine() {
+  const { limit, remaining } = user.usage;
+  return `<p class="muted" id="usage-line" style="margin:0">${remaining} of ${limit} scans left this month${user.plan === "pro" ? " · Pro" : ` · <a href="#/account">Upgrade for more</a>`}</p>`;
 }
 
 function photoIdentifierHtml() {
   return `
     <div class="stack">
+      ${usageLine()}
       <label class="dropzone" id="dropzone">
         <input type="file" id="photo" accept="image/*" capture="environment" class="sr-only" />
         <div id="preview"><div style="font-size:2.5rem">📷</div><strong>Tap to take or upload a photo</strong><div class="muted">or drag an image here</div></div>
@@ -372,20 +630,28 @@ function wirePhotoIdentifier() {
     btn.disabled = true;
     out.innerHTML = `<div class="notice" style="display:flex;gap:12px;align-items:center"><div class="spinner"></div>Looking at your photo…</div>`;
     try {
-      const res = await fetch("/api/identify", {
+      const body = await api("/api/identify", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          image: prepared.image,
-          mediaType: prepared.mediaType,
-          problem: view.querySelector("#problem").value,
-        }),
+        body: { image: prepared.image, mediaType: prepared.mediaType, problem: view.querySelector("#problem").value },
       });
-      const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "Identification failed.");
+      if (body.usage) {
+        user.usage = body.usage;
+        view.querySelector("#usage-line").outerHTML = usageLine();
+      }
+      if (body.is_appliance && findAppliance(body.catalog_id) && (body.model_number || body.brand)) {
+        setModel(body.catalog_id, { brand: body.brand, modelNumber: body.model_number });
+      }
       out.innerHTML = identificationHtml(body);
     } catch (err) {
-      out.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      if (err.code === "upgrade_required") {
+        out.innerHTML = `<div class="notice warn">${esc(err.message)}</div>${proPitch()}${config.billingEnabled ? `<p><a class="btn" href="#/account">Upgrade to Pro · ${esc(config.proPriceLabel)}</a></p>` : ""}`;
+      } else if (err.code === "auth_required") {
+        user = null;
+        updateAccountNav();
+        render();
+      } else {
+        out.innerHTML = `<div class="notice warn">${esc(err.message)}</div>`;
+      }
     } finally {
       btn.disabled = false;
     }
@@ -399,6 +665,7 @@ function identificationHtml(result) {
   const a = findAppliance(result.catalog_id);
   const matched = a ? result.suggested_repair_ids.map((id) => findRepair(a.id, id)).filter(Boolean) : [];
   const others = a ? a.repairs.filter((r) => !matched.includes(r)) : [];
+  const partCtx = { brand: result.brand, modelNumber: result.model_number };
   const details = [result.brand && `Brand: ${result.brand}`, result.model_number && `Model: ${result.model_number}`]
     .filter(Boolean)
     .map(esc)
@@ -419,10 +686,12 @@ function identificationHtml(result) {
           <div><h3>${esc(s.symptom)}</h3><div class="muted">Likely cause: ${esc(s.likely_cause)}</div>
           <div class="meta"><span class="pill">${esc(s.difficulty)}</span>${s.call_a_pro ? `<span class="pill d3">Call a pro</span>` : ""}</div></div>
           <p style="margin:0">${esc(s.fix_summary)}</p>
+          ${s.parts?.length ? `<div><strong>Parts</strong>${partsHtml(s.parts, partCtx)}</div>` : ""}
           ${videoBlock({ title: `Tutorials: ${s.symptom}`, query: s.video_search_query })}
         </div>`,
       )
-      .join("")}</div>` : ""}
+      .join("")}</div>${result.extra_suggestions.some((s) => s.parts?.length) ? AFFILIATE_NOTE : ""}` : ""}
+    ${matched.length && (partCtx.modelNumber || partCtx.brand) ? `<p class="muted">We saved your ${esc(`${partCtx.brand} ${partCtx.modelNumber}`.trim())} so repair guides link to parts that fit.</p>` : ""}
     ${others.length ? `<h2>More ${esc(a.name.toLowerCase())} guides</h2><div class="list">${others.map((r) => repairCard(a, r)).join("")}</div>` : ""}
   </div>`;
 }
@@ -439,5 +708,16 @@ if (!storage.get("fixit.safetySeen", false)) {
   });
   document.querySelector(".topbar").after(banner);
 }
+
+refreshUser().then(() => {
+  syncProjects();
+  if (["identify", "account", "saved"].includes(currentRoute().name)) render();
+});
+api("/api/config")
+  .then((c) => {
+    config = { ...config, ...c };
+    render();
+  })
+  .catch(() => {});
 
 render();

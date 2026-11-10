@@ -26,6 +26,7 @@ export const IdentificationSchema = z.object({
         fix_summary: z.string(),
         difficulty: z.enum(["easy", "moderate", "advanced"]),
         call_a_pro: z.boolean(),
+        parts: z.array(z.string()).describe("Replacement parts the fix may need, as short generic names; empty if none"),
         video_search_query: z.string(),
       }),
     )
