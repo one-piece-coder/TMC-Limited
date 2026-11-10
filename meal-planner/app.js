@@ -148,6 +148,32 @@ const DEFAULT_KCAL = {
   'Vegan chili': 380, 'Stuffed sweet potatoes': 400, 'Zucchini noodles with marinara': 250,
   'Turkey lettuce wraps': 320, 'Cauliflower fried rice': 280, 'Grilled chicken salad': 350,
 };
+// Food Network specialty recipes (links checked Nov 2026). Ingredients are a shopping summary;
+// the linked recipe has exact amounts.
+// [name, types, vegetarian, quick, kcal, chef, ingredients, recipe link]
+const SPECIALTY_MEALS = [
+  ["Alton Brown's Overnight Oatmeal", "b", 1, 0, 350, "Alton Brown", "steel-cut oats, dried cranberries, dried figs, half-and-half", "https://www.foodnetwork.com/recipes/alton-brown/overnight-oatmeal-recipe-1939324"],
+  ["Alton Brown's \"Instant\" Pancakes", "b", 1, 1, 520, "Alton Brown", "flour, sugar, baking powder, baking soda, buttermilk, eggs, butter, maple syrup", "https://www.foodnetwork.com/recipes/alton-brown/instant-pancake-mix-recipe-1938544"],
+  ["Alton Brown's Shakshuka", "bd", 1, 0, 380, "Alton Brown", "eggs, red bell peppers, tomatoes, onions, garlic, harissa, bread", "https://www.foodnetwork.com/recipes/alton-brown/shakshuka-7424000"],
+  ["Ree Drummond's Frittata", "b", 1, 0, 350, "Ree Drummond", "eggs, mushrooms, asparagus, potatoes, roasted red peppers, parmesan cheese", "https://www.foodnetwork.com/recipes/ree-drummond/frittata-2593843"],
+  ["Ree Drummond's Cinnamon Rolls", "b", 1, 0, 450, "Ree Drummond", "flour, milk, sugar, yeast, butter, cinnamon, brown sugar, powdered sugar, maple flavoring", "https://www.foodnetwork.com/recipes/ree-drummond/cinnamon-rolls-recipe2-2119941"],
+  ["Ree Drummond's Herbalicious Breakfast Casserole", "b", 1, 0, 480, "Ree Drummond", "onion rolls, eggs, milk, cream cheese, mozzarella, pesto", "https://www.foodnetwork.com/recipes/ree-drummond/herbalicious-breakfast-casserole-5458018"],
+  ["Ina Garten's Tomato Soup & Grilled Cheese Croutons", "l", 0, 0, 550, "Ina Garten", "onions, garlic, chicken broth, canned crushed tomatoes, saffron, orzo, heavy cream, bread, gruyère cheese, butter", "https://www.foodnetwork.com/recipes/ina-garten/easy-tomato-soup-grilled-cheese-croutons-recipe-2109038"],
+  ["Guy Fieri's Trash Can Nachos", "ld", 0, 0, 900, "Guy Fieri", "tortilla chips, flank steak, black beans, cheddar cheese, monterey jack cheese, salsa, sour cream, jalapeños, avocados", "https://www.foodnetwork.com/recipes/guy-fieri/trash-can-nachos-3582107"],
+  ["Ree Drummond's Chicken Spaghetti", "d", 0, 0, 650, "Ree Drummond", "whole chicken, spaghetti, cream of mushroom soup, onions, bell peppers, cheddar cheese, seasoned salt, cayenne", "https://www.foodnetwork.com/recipes/ree-drummond/chicken-spaghetti-recipe-2108829"],
+  ["Ree Drummond's Perfect Pot Roast", "d", 0, 0, 600, "Ree Drummond", "chuck roast, onions, carrots, red wine, beef broth, tomato paste, thyme, rosemary", "https://www.foodnetwork.com/videos/rees-perfect-pot-roast-0216872"],
+  ["Ina Garten's Perfect Roast Chicken", "d", 0, 0, 550, "Ina Garten", "whole chicken, lemons, garlic, thyme, onions, carrots, fennel, butter", "https://www.foodnetwork.com/recipes/ina-garten/perfect-roast-chicken-recipe-1940592"],
+  ["Ina Garten's Lemon Chicken Breasts", "d", 0, 0, 420, "Ina Garten", "chicken breasts, garlic, white wine, lemons, oregano, thyme", "https://www.foodnetwork.com/recipes/ina-garten/lemon-chicken-breasts-recipe-1923711"],
+  ["Ina Garten's Weeknight Bolognese", "d", 0, 0, 650, "Ina Garten", "ground beef, garlic, red pepper flakes, red wine, canned crushed tomatoes, tomato paste, heavy cream, basil, spaghetti, parmesan cheese", "https://www.foodnetwork.com/videos/inas-weeknight-bolognese-0223269"],
+  ["Ina Garten's Crispy Chicken with Lemon Orzo", "d", 0, 0, 650, "Ina Garten", "chicken breasts, flour, eggs, panko breadcrumbs, butter, orzo, lemons, feta cheese, parsley", "https://www.foodnetwork.com/recipes/ina-garten/crispy-chicken-with-lemon-orzo-12049023"],
+  ["Giada De Laurentiis's Chicken Piccata", "d", 0, 0, 450, "Giada De Laurentiis", "chicken breasts, flour, butter, lemons, chicken broth, capers, parsley", "https://www.foodnetwork.com/recipes/giada-de-laurentiis/chicken-piccata-recipe2-1913809"],
+  ["Giada De Laurentiis's Lemon Spaghetti", "ld", 1, 1, 550, "Giada De Laurentiis", "spaghetti, parmesan cheese, lemons, basil", "https://www.foodnetwork.com/recipes/giada-de-laurentiis/lemon-spaghetti-recipe-1915566"],
+  ["Rachael Ray's Vodka Cream Pasta", "d", 0, 1, 650, "Rachael Ray", "penne pasta, shallots, garlic, vodka, chicken broth, canned crushed tomatoes, heavy cream, basil", "https://www.foodnetwork.com/recipes/rachael-ray/you-wont-be-single-for-long-vodka-cream-pasta-recipe-1912258"],
+  ["Rachael Ray's Pasta with Vodka Sauce & Shrimp", "d", 0, 1, 650, "Rachael Ray", "shrimp, penne pasta, shallots, garlic, vodka, canned crushed tomatoes, heavy cream, basil", "https://www.foodnetwork.com/recipes/rachael-ray/pasta-with-vodka-sauce-and-shrimp-5638998"],
+  ["Bobby Flay's Fish Tacos", "ld", 0, 0, 480, "Bobby Flay", "white fish fillets, limes, ancho chili powder, jalapeños, cilantro, tortillas, cabbage", "https://www.foodnetwork.com/recipes/bobby-flay/fish-tacos-recipe-1940773"],
+  ["Alton Brown's Baked Macaroni & Cheese", "d", 1, 0, 650, "Alton Brown", "elbow macaroni, butter, flour, milk, cheddar cheese, onions, eggs, panko breadcrumbs, bay leaves", "https://www.foodnetwork.com/recipes/alton-brown/baked-macaroni-and-cheese-recipe-1939524"],
+];
+
 const LOW_CAL_MAX = 450; // a meal counts as low calorie at or under this many kcal
 
 // Ingredients for the starter meals (pantry basics like salt, pepper and oil are left out).
@@ -256,21 +282,23 @@ const DEFAULT_INGREDIENTS = {
 
 // Store aisles for the grocery list. Anything not listed lands in "Other".
 const AISLES = [
-  ['Produce', 'berries, avocados, lemons, limes, bananas, apples, bell peppers, onions, red onions, spinach, potatoes, garlic, lettuce, romaine lettuce, tomatoes, cherry tomatoes, cucumbers, carrots, celery, basil, cabbage, green onions, broccoli, snap peas, ginger, mushrooms, cauliflower, green beans, sweet potatoes, eggplant, cilantro, thyme, parsley, bean sprouts, chives, asparagus, shallots, zucchini, bok choy, mixed greens, coleslaw mix, kale, butter lettuce, firm tofu'],
-  ['Meat', 'breakfast sausage, bacon, deli turkey, chicken breasts, chicken thighs, ground beef, steaks, pork chops, flank steak, whole chicken, pork shoulder, ground turkey'],
+  ['Produce', 'berries, avocados, lemons, limes, bananas, apples, bell peppers, onions, red onions, spinach, potatoes, garlic, lettuce, romaine lettuce, tomatoes, cherry tomatoes, cucumbers, carrots, celery, basil, cabbage, green onions, broccoli, snap peas, ginger, mushrooms, cauliflower, green beans, sweet potatoes, eggplant, cilantro, thyme, parsley, bean sprouts, chives, asparagus, shallots, zucchini, bok choy, mixed greens, coleslaw mix, kale, butter lettuce, firm tofu, red bell peppers, jalapeños, rosemary, fennel, oregano'],
+  ['Meat', 'breakfast sausage, bacon, deli turkey, chicken breasts, chicken thighs, ground beef, steaks, pork chops, flank steak, whole chicken, pork shoulder, ground turkey, chuck roast'],
   ['Fish & seafood', 'smoked salmon, canned tuna, sashimi-grade salmon, shrimp, salmon fillets, white fish fillets, cod fillets, crab meat, mussels, tilapia fillets, tuna steaks, canned salmon'],
-  ['Dairy & refrigerated', 'eggs, butter, milk, greek yogurt, cheddar cheese, cream cheese, feta cheese, queso fresco, parmesan cheese, fresh mozzarella, mozzarella, blue cheese, sour cream, ricotta cheese, heavy cream, hummus, oat milk'],
-  ['Bakery', 'bread, bagels, tortillas, english muffins, ciabatta bread, pita bread, hoagie rolls, burger buns, french bread, taco shells, pizza dough'],
+  ['Dairy & refrigerated', 'eggs, butter, milk, greek yogurt, cheddar cheese, cream cheese, feta cheese, queso fresco, parmesan cheese, fresh mozzarella, mozzarella, blue cheese, sour cream, ricotta cheese, heavy cream, hummus, oat milk, half-and-half, buttermilk, gruyère cheese, monterey jack cheese'],
+  ['Bakery', 'onion rolls, bread, bagels, tortillas, english muffins, ciabatta bread, pita bread, hoagie rolls, burger buns, french bread, taco shells, pizza dough'],
   ['Frozen', 'frozen berries, frozen hash browns, frozen peas & carrots, frozen peas, edamame, falafel, cauliflower rice'],
-  ['Pantry', 'rolled oats, chia seeds, honey, granola, flour, maple syrup, baking powder, peanut butter, brown sugar, black beans, chickpeas, canned crushed tomatoes, canned diced tomatoes, canned tomato soup, egg noodles, chicken broth, vegetable broth, quinoa, rice, sushi rice, arborio rice, lentils, kidney beans, coconut milk, spaghetti, linguine, rotini pasta, penne pasta, fettuccine, lasagna noodles, orzo, rice noodles, croutons, almonds, peanuts, kalamata olives, breadcrumbs, applesauce, corn, nori, white wine, sesame seeds, cornmeal, nutritional yeast, almond butter, tahini'],
-  ['Sauces, spices & condiments', 'salsa, mayonnaise, mustard, dijon mustard, caesar dressing, ranch dressing, sesame dressing, italian dressing, pesto, soy sauce, cumin, paprika, cinnamon, taco seasoning, chili powder, fajita seasoning, curry paste, teriyaki sauce, marinara sauce, pizza sauce, ketchup, bbq sauce, enchilada sauce, pad thai sauce, capers, tartar sauce, cajun seasoning, vegan mayo, balsamic vinaigrette'],
+  ['Pantry', 'rolled oats, chia seeds, honey, granola, flour, maple syrup, baking powder, peanut butter, brown sugar, black beans, chickpeas, canned crushed tomatoes, canned diced tomatoes, canned tomato soup, egg noodles, chicken broth, vegetable broth, quinoa, rice, sushi rice, arborio rice, lentils, kidney beans, coconut milk, spaghetti, linguine, rotini pasta, penne pasta, fettuccine, lasagna noodles, orzo, rice noodles, croutons, almonds, peanuts, kalamata olives, breadcrumbs, applesauce, corn, nori, white wine, sesame seeds, cornmeal, nutritional yeast, almond butter, tahini, steel-cut oats, dried cranberries, dried figs, sugar, baking soda, roasted red peppers, yeast, powdered sugar, maple flavoring, tortilla chips, cream of mushroom soup, red wine, beef broth, tomato paste, panko breadcrumbs, vodka, elbow macaroni'],
+  ['Sauces, spices & condiments', 'salsa, mayonnaise, mustard, dijon mustard, caesar dressing, ranch dressing, sesame dressing, italian dressing, pesto, soy sauce, cumin, paprika, cinnamon, taco seasoning, chili powder, fajita seasoning, curry paste, teriyaki sauce, marinara sauce, pizza sauce, ketchup, bbq sauce, enchilada sauce, pad thai sauce, capers, tartar sauce, cajun seasoning, vegan mayo, balsamic vinaigrette, harissa, saffron, seasoned salt, cayenne, red pepper flakes, ancho chili powder, bay leaves'],
 ];
 const AISLE_OF = new Map();
 AISLES.forEach(([aisle, list]) => list.split(', ').forEach((i) => AISLE_OF.set(i, aisle)));
 const AISLE_ORDER = [...AISLES.map((a) => a[0]), 'Other'];
 const SEAFOOD = new Set(AISLES.find((a) => a[0] === 'Fish & seafood')[1].split(', '));
-const LIB_VERSION = 3;
-const FIRST_VERSION_MEALS = 70; // starter meals that shipped before fish, vegan and light meals were added
+const LIB_VERSION = 4;
+// How many starter meals each library version had, so an upgrade only adds meals that are new to that person
+// (starter meals they deleted stay deleted). v4 added the Food Network specialty meals after these.
+const MEALS_AT_VERSION = { 1: 70, 2: 70, 3: 100, 4: 120 };
 // Ingredients that come from animals (used to work out which starter meals are vegan)
 const NOT_VEGAN = new Set([
   ...AISLES.filter((a) => a[0] === 'Meat' || a[0] === 'Fish & seafood').flatMap((a) => a[1].split(', ')),
@@ -286,6 +314,19 @@ function parseIngredients(text) {
 }
 
 function buildDefaultLibrary() {
+  const specials = SPECIALTY_MEALS.map(([name, t, veg, quick, kcal, chef, ing, url], i) => {
+    const ingredients = parseIngredients(ing);
+    return {
+      id: 's' + i, name, types: SLOTS.filter((s) => t.includes(s[0])), veg: !!veg, quick: !!quick,
+      fish: ingredients.some((x) => SEAFOOD.has(x)),
+      vegan: !!veg && !ingredients.some((x) => NOT_VEGAN.has(x)),
+      kcal, ingredients, special: true, chef, url,
+    };
+  });
+  return [...buildStarterMeals(), ...specials];
+}
+
+function buildStarterMeals() {
   return DEFAULT_MEALS.map(([name, t, veg, quick], i) => {
     const ingredients = parseIngredients(DEFAULT_INGREDIENTS[name]);
     return {
@@ -316,12 +357,12 @@ function migrateLibrary() {
     if (typeof m.fish !== 'boolean') m.fish = d ? d.fish : m.ingredients.some((x) => SEAFOOD.has(x));
     if (typeof m.vegan !== 'boolean') m.vegan = d ? d.vegan : !!m.veg && m.ingredients.length > 0 && !m.ingredients.some((x) => NOT_VEGAN.has(x));
     if (typeof m.kcal !== 'number') m.kcal = d ? d.kcal : 0;
+    if (d?.special && !m.url) Object.assign(m, { special: true, chef: d.chef, url: d.url });
   }
   const used = new Set(state.library.map((m) => m.id));
-  // Only meals added since the first version: starter meals someone deleted stay deleted.
-  for (const d of defaults.slice(FIRST_VERSION_MEALS)) {
+  for (const d of defaults.slice(MEALS_AT_VERSION[state.libVersion] || 70)) {
     if (have.has(d.name.toLowerCase())) continue;
-    if (used.has(d.id)) d.id = 'd' + d.id + '-' + Date.now().toString(36);
+    if (used.has(d.id)) d.id = d.id + '-' + Date.now().toString(36);
     state.library.push(d);
   }
   state.libVersion = LIB_VERSION;
@@ -598,7 +639,7 @@ function slotButton(dateKey, slot) {
   const m = getMeal(dateKey, slot);
   return `<button class="slot ${m ? 'filled' : ''}" data-slot="${slot}" data-date="${dateKey}">
     <span class="label">${SLOT_LABEL[slot]}</span>
-    <span class="name ${m ? '' : 'empty'}">${m ? esc(m.name) : 'Add a meal'}</span>
+    <span class="name ${m ? '' : 'empty'}">${m ? esc(m.name) + (findMeal(m.name)?.special ? ' <span class="star" title="Food Network specialty">⭐</span>' : '') : 'Add a meal'}</span>
     ${m && (m.note || kcalOf(m.name)) ? `<span class="note">${[m.note, kcalOf(m.name) ? `~${kcalOf(m.name)} kcal` : ''].filter(Boolean).map(esc).join(' · ')}</span>` : ''}
   </button>`;
 }
@@ -698,9 +739,9 @@ function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
  *   both existing plans and meals chosen during this run).
  * - Falls back to the least-recently-used option if the library is too small.
  */
-function generate({ from, to, slots, onlyEmpty = true, diet = 'any', quick = false, fish = 'any', lowCal = false, noRepeat = 5, leftovers = false, quiet = false }) {
+function generate({ from, to, slots, onlyEmpty = true, specials = 'mix', diet = 'any', quick = false, fish = 'any', lowCal = false, noRepeat = 5, leftovers = false, quiet = false }) {
   const dietOk = (m) => diet === 'any' || (diet === 'vegan' ? m.vegan : diet === 'pescatarian' ? (m.veg || m.fish) : m.veg);
-  const pool = state.library.filter((m) => dietOk(m) && (!quick || m.quick) && (!lowCal || isLowCal(m))
+  const pool = state.library.filter((m) => (specials === 'only' ? m.special : specials === 'none' ? !m.special : true) && dietOk(m) && (!quick || m.quick) && (!lowCal || isLowCal(m))
     && (fish === 'any' || (fish === 'only' ? m.fish : !m.fish)));
   let count = 0;
   const missing = new Set();
@@ -749,7 +790,10 @@ function generate({ from, to, slots, onlyEmpty = true, diet = 'any', quick = fal
         return last === undefined || di - last > noRepeat;
       });
       let choice;
-      if (fresh.length) choice = pick(fresh);
+      // "Mix some in": about one meal in four comes from the specialty recipes when one fits
+      const freshSpecial = fresh.filter((m) => m.special);
+      if (specials === 'mix' && freshSpecial.length && Math.random() < 0.25) choice = pick(freshSpecial);
+      else if (fresh.length) choice = pick(specials === 'mix' && fresh.some((m) => !m.special) ? fresh.filter((m) => !m.special) : fresh);
       else {
         // Least recently used
         const oldest = Math.min(...candidates.map((m) => lastUsed.get(m.name.toLowerCase()) ?? -Infinity));
@@ -787,6 +831,7 @@ function openSlot(dateKey, slot) {
   $('#slot-title').textContent = `${SLOT_LABEL[slot]} · ${fmt(parseKey(dateKey), { weekday: 'long', month: 'short', day: 'numeric' })}`;
   $('#slot-name').value = m?.name || '';
   $('#slot-note').value = m?.note || '';
+  updateRecipeLink();
   const options = state.library.filter((x) => x.types.includes(slot)).sort((a, b) => a.name.localeCompare(b.name));
   $('#slot-options').innerHTML = options.map((o) => `<option value="${esc(o.name)}"></option>`).join('');
   // Show a handful of random suggestions as one-tap chips
@@ -796,13 +841,21 @@ function openSlot(dateKey, slot) {
   $('#slot-name').focus();
 }
 
+function updateRecipeLink() {
+  const lib = findMeal($('#slot-name').value.trim());
+  const a = $('#slot-recipe');
+  a.hidden = !lib?.url;
+  if (lib?.url) { a.href = lib.url; a.textContent = `View ${lib.chef ? lib.chef + '’s' : 'the'} recipe on foodnetwork.com ↗`; }
+}
+$('#slot-name').addEventListener('input', updateRecipeLink);
 $('#slot-suggestions').addEventListener('click', (e) => {
   const b = e.target.closest('[data-suggest]');
-  if (b) $('#slot-name').value = b.dataset.suggest;
+  if (b) { $('#slot-name').value = b.dataset.suggest; updateRecipeLink(); }
 });
 $('#slot-random').addEventListener('click', () => {
   const opts = state.library.filter((x) => x.types.includes(editing.slot) && x.name !== $('#slot-name').value);
   if (opts.length) $('#slot-name').value = pick(opts).name;
+  updateRecipeLink();
 });
 $('#slot-clear').addEventListener('click', () => {
   setMeal(editing.dateKey, editing.slot, null);
@@ -869,6 +922,7 @@ dlgGen.addEventListener('close', () => {
     from: r[0], to: r[1], slots,
     onlyEmpty: formGen.onlyEmpty.checked,
     diet: formGen.diet.value,
+    specials: formGen.specials.value,
     quick: formGen.quick.checked,
     fish: formGen.fish.value,
     lowCal: formGen.lowCal.checked,
@@ -901,8 +955,8 @@ function renderLibrary() {
       && (!tag || (tag === 'nofish' ? !m.fish : tag === 'lowcal' ? isLowCal(m) : m[tag])))
     .sort((a, b) => a.name.localeCompare(b.name));
   $('#lib-list').innerHTML = items.length ? items.map((m) => `<li>
-      <span class="n">${esc(m.name)}${m.vegan ? ' 🌱' : m.veg ? ' 🥦' : ''}${m.fish ? ' 🐟' : ''}${m.quick ? ' ⚡' : ''}${isLowCal(m) ? ' 🪶' : ''}${m.kcal ? ` <span class="kc">~${m.kcal} kcal</span>` : ''}
-        <small class="ing">${m.ingredients?.length ? esc(m.ingredients.join(', ')) : 'No ingredients yet'}</small></span>
+      <span class="n">${esc(m.name)}${m.vegan ? ' 🌱' : m.veg ? ' 🥦' : ''}${m.fish ? ' 🐟' : ''}${m.quick ? ' ⚡' : ''}${isLowCal(m) ? ' 🪶' : ''}${m.special ? ' ⭐' : ''}${m.kcal ? ` <span class="kc">~${m.kcal} kcal</span>` : ''}
+        <small class="ing">${m.ingredients?.length ? esc(m.ingredients.join(', ')) : 'No ingredients yet'}${m.url ? ` · <a href="${esc(m.url)}" target="_blank" rel="noopener">Recipe ↗</a>` : ''}</small></span>
       ${m.types.map((s) => `<span class="tag ${s}">${s[0].toUpperCase()}</span>`).join('')}
       <button data-edit="${esc(m.id)}" aria-label="Edit ${esc(m.name)}">✎</button>
       <button data-del="${esc(m.id)}" aria-label="Remove ${esc(m.name)}">✕</button>

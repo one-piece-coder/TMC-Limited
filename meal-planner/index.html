@@ -46,6 +46,7 @@
       <label>Notes
         <input id="slot-note" autocomplete="off" placeholder="Optional — e.g. leftovers, eating out" />
       </label>
+      <a id="slot-recipe" class="recipe-link" target="_blank" rel="noopener" hidden></a>
       <div class="suggestions" id="slot-suggestions"></div>
       <div class="dlg-actions">
         <button type="button" id="slot-random">🎲 Surprise me</button>
@@ -84,6 +85,13 @@
       <fieldset>
         <legend>Options</legend>
         <label class="check"><input type="checkbox" name="onlyEmpty" checked /> Only fill empty slots (keep what I've planned)</label>
+        <label class="inline">⭐ Food Network specialty meals
+          <select name="specials">
+            <option value="mix">Mix some in</option>
+            <option value="only">Specialty meals only</option>
+            <option value="none">Don't include</option>
+          </select>
+        </label>
         <div class="opt-row">
           <label class="inline">Diet
             <select name="diet">
@@ -161,9 +169,10 @@
         <option value="nofish">No fish</option>
         <option value="lowcal">🪶 Low calorie</option>
         <option value="quick">⚡ Quick</option>
+        <option value="special">⭐ Food Network specialty</option>
       </select>
     </div>
-    <p class="muted legend">🥦 vegetarian · 🌱 vegan · 🐟 fish · ⚡ quick · 🪶 low calorie (≤ 450 kcal). Calories are rough estimates per serving.</p>
+    <p class="muted legend">🥦 vegetarian · 🌱 vegan · 🐟 fish · ⚡ quick · 🪶 low calorie (≤ 450 kcal) · ⭐ Food Network specialty, with a link to the recipe. Calories are rough estimates per serving.</p>
     <ul id="lib-list" class="lib-list"></ul>
   </dialog>
 

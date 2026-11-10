@@ -382,3 +382,7 @@ dialog .gro-aisle li label { display: flex; align-items: flex-start; gap: 0.55re
 @media (prefers-reduced-motion: reduce) {
   #toast { transition: none; }
 }
+
+.recipe-link { display: inline-block; margin: 0.2rem 0 0.5rem; color: var(--accent); font-weight: 500; }
+.lib-list .ing a { color: var(--accent); }
+.slot .star { font-size: 0.8em; }
