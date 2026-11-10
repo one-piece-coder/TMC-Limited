@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The Fable Loom</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=Spectral:ital,wght@0,400;0,600;1,400&family=Spectral+SC:wght@600&display=swap">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+<header class="masthead">
+  <h1>The Fable <span>Loom</span></h1>
+  <p>Grand tales of trial and triumph, each ending with a lesson to keep.</p>
+</header>
+
+<main class="book">
+  <aside class="loom">
+    <form id="loom-form" autocomplete="off">
+      <h2>weave a fable</h2>
+      <div class="field">
+        <label for="lesson">Lesson to learn</label>
+        <select id="lesson"><option value="">Any lesson</option></select>
+      </div>
+      <div class="field">
+        <label for="kind">Hero</label>
+        <select id="kind"><option value="">Any creature</option></select>
+      </div>
+      <div class="field">
+        <label for="hero-name">Hero’s name (optional)</label>
+        <input id="hero-name" type="text" maxlength="40" placeholder="Leave blank for a storyteller’s choice">
+      </div>
+      <button class="weave" type="submit">Weave a new fable</button>
+    </form>
+
+    <section class="shelf" aria-labelledby="shelf-title">
+      <h2 id="shelf-title">your shelf</h2>
+      <ol id="shelf-list"></ol>
+      <p class="empty" id="shelf-empty">Fables you save appear here.</p>
+    </section>
+  </aside>
+
+  <article class="page" aria-live="polite">
+    <div class="folio"><span id="folio-no">Fable</span><span id="folio-meta"></span></div>
+    <div class="tale" id="tale"></div>
+    <div class="actions">
+      <button type="button" id="btn-again">Another like this</button>
+      <button type="button" id="btn-read" hidden>Read aloud</button>
+      <button type="button" id="btn-save">Save to shelf</button>
+      <button type="button" id="btn-copy">Copy text</button>
+      <button type="button" id="btn-link">Copy link</button>
+    </div>
+    <p class="toast" id="toast" role="status"></p>
+  </article>
+</main>
+
+<script src="js/fables.js"></script>
+<script src="js/app.js"></script>
+</body>
+</html>

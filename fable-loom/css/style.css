@@ -1,0 +1,289 @@
+/* Layout: a bound book laid open. The loom (controls) sits as the left leaf on wide
+   screens and the tale is the right-hand page; on phones the loom stacks above the page. */
+:root {
+  --cloth: #dfe5da;        /* page ground: sage book-cloth */
+  --vellum: #f6f5ee;       /* the page itself */
+  --ink: #1f2b25;          /* iron-gall green-black */
+  --ink-soft: #55635b;
+  --rule: #c5ccbf;
+  --gilt: #8a6418;         /* gold leaf, darkened for contrast on vellum */
+  --gilt-soft: #e9dcb8;
+  --rubric: #9b2c22;       /* manuscript red for initials and run-in heads */
+  --field: #ffffff;
+  --shadow: 0 1px 2px rgb(31 43 37 / 0.08), 0 12px 32px -12px rgb(31 43 37 / 0.25);
+
+  --font-display: "IM Fell English SC", "IM Fell English", Georgia, "Times New Roman", serif;
+  --font-body: "Spectral", Georgia, "Times New Roman", serif;
+  --font-ui: "Spectral SC", "Spectral", Georgia, serif;
+
+  --step--1: 0.875rem;
+  --step-0: 1.0625rem;
+  --step-1: 1.25rem;
+  --step-2: 1.6rem;
+  --step-3: clamp(1.9rem, 1.4rem + 2vw, 2.7rem);
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --cloth: #0f1a16; --vellum: #17241f; --ink: #e6e4d6; --ink-soft: #a9b3a7;
+    --rule: #2e4038; --gilt: #d4ad5a; --gilt-soft: #3b3420; --rubric: #e0796b;
+    --field: #1d2c26; --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -16px rgb(0 0 0 / 0.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --cloth: #0f1a16; --vellum: #17241f; --ink: #e6e4d6; --ink-soft: #a9b3a7;
+  --rule: #2e4038; --gilt: #d4ad5a; --gilt-soft: #3b3420; --rubric: #e0796b;
+  --field: #1d2c26; --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -16px rgb(0 0 0 / 0.6);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--cloth);
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: var(--step-0);
+  line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 28px 48px;
+}
+
+.masthead {
+  max-width: 1120px;
+  margin: 0 auto 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 24px;
+}
+.masthead h1 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--step-2);
+  letter-spacing: 0.02em;
+}
+.masthead h1 span { color: var(--gilt); }
+.masthead p { margin: 0; color: var(--ink-soft); font-style: italic; }
+
+.book {
+  max-width: 1120px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: minmax(260px, 320px) minmax(0, 1fr);
+  gap: 28px;
+  align-items: start;
+}
+@media (max-width: 820px) {
+  .book { grid-template-columns: minmax(0, 1fr); }
+}
+
+/* ---------- The loom (controls) ---------- */
+.loom {
+  display: grid;
+  gap: 18px;
+  position: sticky;
+  top: calc(env(safe-area-inset-top, 0px) + 16px);
+}
+@media (max-width: 820px) { .loom { position: static; } }
+
+.loom form {
+  display: grid;
+  gap: 14px;
+  padding: 20px;
+  border: 1px solid var(--rule);
+  border-radius: 4px;
+  background: var(--vellum);
+}
+.loom h2, .shelf h2 {
+  margin: 0;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.12em;
+  text-transform: lowercase;
+  color: var(--gilt);
+}
+.field { display: grid; gap: 4px; }
+.field label {
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  letter-spacing: 0.06em;
+  color: var(--ink-soft);
+}
+.field select, .field input {
+  font: inherit;
+  font-size: 1rem;
+  color: var(--ink);
+  background: var(--field);
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 8px 10px;
+  width: 100%;
+}
+.field input::placeholder { color: var(--ink-soft); opacity: 0.8; }
+
+button {
+  font: inherit;
+  cursor: pointer;
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--rule);
+  border-radius: 3px;
+  padding: 7px 12px;
+  font-size: var(--step--1);
+  font-family: var(--font-ui);
+  letter-spacing: 0.04em;
+}
+button:hover { border-color: var(--gilt); }
+:focus-visible { outline: 2px solid var(--gilt); outline-offset: 2px; }
+
+.weave {
+  background: var(--ink);
+  color: var(--vellum);
+  border-color: var(--ink);
+  font-size: var(--step-0);
+  padding: 11px 14px;
+}
+.weave:hover { background: var(--gilt); border-color: var(--gilt); color: var(--vellum); }
+
+.shelf {
+  display: grid;
+  gap: 10px;
+  padding: 0 4px;
+}
+.shelf ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.shelf li { display: flex; gap: 6px; align-items: baseline; }
+.shelf li button.open {
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+  border: 0;
+  padding: 6px 0;
+  font-family: var(--font-body);
+  font-size: 0.95rem;
+  letter-spacing: 0;
+  line-height: 1.35;
+}
+.shelf li button.open small { display: block; color: var(--ink-soft); font-size: var(--step--1); }
+.shelf li button.open:hover { color: var(--rubric); }
+.shelf li button.remove { border: 0; padding: 4px 6px; color: var(--ink-soft); }
+.shelf .empty { margin: 0; color: var(--ink-soft); font-size: var(--step--1); font-style: italic; }
+
+/* ---------- The page (the tale) ---------- */
+.page {
+  min-width: 0;
+  background: var(--vellum);
+  border: 1px solid var(--rule);
+  border-radius: 2px 6px 6px 2px;
+  box-shadow: var(--shadow);
+  padding: clamp(24px, 5vw, 64px) clamp(20px, 6vw, 80px);
+}
+.folio {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 4px 16px;
+  font-family: var(--font-ui);
+  font-size: var(--step--1);
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 10px;
+  font-variant-numeric: oldstyle-nums;
+}
+.tale { max-width: 38em; margin: 0 auto; }
+.tale h2 {
+  font-family: var(--font-display);
+  font-weight: 400;
+  font-size: var(--step-3);
+  line-height: 1.15;
+  text-align: center;
+  text-wrap: balance;
+  margin: 36px 0 8px;
+}
+.tale .byline {
+  text-align: center;
+  margin: 0 0 32px;
+  color: var(--ink-soft);
+  font-style: italic;
+}
+.tale p.section { margin: 0 0 1.1em; text-align: justify; hyphens: auto; }
+.tale p.section .rubric {
+  font-family: var(--font-ui);
+  color: var(--rubric);
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+.tale p.section:first-of-type::first-letter {
+  font-family: var(--font-display);
+  color: var(--rubric);
+  float: left;
+  font-size: 4.2em;
+  line-height: 0.82;
+  padding: 0.06em 0.1em 0 0;
+}
+
+.fleuron {
+  text-align: center;
+  color: var(--gilt);
+  font-size: var(--step-2);
+  margin: 28px 0 8px;
+  line-height: 1;
+}
+.moral {
+  text-align: center;
+  margin: 0 0 28px;
+}
+.moral h3, .lesson h3 {
+  margin: 0 0 6px;
+  font-family: var(--font-ui);
+  font-weight: 600;
+  font-size: var(--step--1);
+  letter-spacing: 0.14em;
+  text-transform: lowercase;
+  color: var(--gilt);
+}
+.moral p {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--step-2);
+  line-height: 1.3;
+  text-wrap: balance;
+}
+.lesson {
+  border-top: 1px solid var(--gilt);
+  border-bottom: 1px solid var(--gilt);
+  background: var(--gilt-soft);
+  padding: 16px 20px;
+}
+.lesson p { margin: 0; }
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: center;
+  margin-top: 32px;
+  padding-top: 20px;
+  border-top: 1px solid var(--rule);
+}
+.toast {
+  min-height: 1.5em;
+  margin: 10px 0 0;
+  text-align: center;
+  color: var(--ink-soft);
+  font-size: var(--step--1);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .tale.fresh { animation: turn 500ms ease-out; }
+  @keyframes turn { from { opacity: 0.35; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+}
+
+@media (max-width: 520px) {
+  .tale p.section { text-align: left; }
+}
