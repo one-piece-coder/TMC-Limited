@@ -1,6 +1,7 @@
 (function () {
   'use strict';
   const E = window.FableEngine;
+  const A = window.FableArt;
   const $ = (id) => document.getElementById(id);
   const SHELF_KEY = 'fable-loom-shelf';
 
@@ -20,6 +21,12 @@
 
   E.lessons.forEach((l) => lessonSel.add(new Option(l.name, l.id)));
   E.creatures.forEach((c) => kindSel.add(new Option(cap(c), c)));
+
+  // Rose-window preview of the chosen hero.
+  const preview = $('kind-preview');
+  const drawPreview = () => { preview.innerHTML = A.portrait(kindSel.value); };
+  kindSel.addEventListener('change', drawPreview);
+  drawPreview();
 
   function say(msg) {
     toast.textContent = msg;
@@ -54,6 +61,13 @@
     tale.append(el('p', 'byline',
       `A fable of ${f.lesson.name.toLowerCase()}, in which ${f.hero.name} the ${f.hero.kind} faces ${f.guardian}`));
 
+    const fig = el('figure', 'window');
+    fig.innerHTML = A.plate(f);
+    fig.append(el('figcaption', null,
+      `The window of ${f.hero.name}: the ${f.hero.kind} in ${f.realm}, ` +
+      `with ${f.companion.name} the ${f.companion.kind} at left and ${f.prize} at right`));
+    tale.append(fig);
+
     f.sections.forEach((s, i) => {
       const p = el('p', 'section');
       if (i > 0) {
@@ -63,8 +77,8 @@
       tale.append(p);
     });
 
-    tale.append(el('div', 'fleuron', '❦'));
     const moral = el('section', 'moral');
+    moral.insertAdjacentHTML('beforeend', A.portrait(f.hero.kind));
     moral.append(el('h3', null, 'the moral'), el('p', null, f.moral));
     tale.append(moral);
 
@@ -97,6 +111,7 @@
     lessonSel.value = E.lessons.some((l) => l.id === p.lesson) ? p.lesson : '';
     kindSel.value = E.creatures.includes(p.kind) ? p.kind : '';
     nameInput.value = p.name || '';
+    drawPreview();
     show(E.generate(p));
   }
 
@@ -178,6 +193,7 @@
     $('shelf-empty').hidden = items.length > 0;
     items.forEach((it, i) => {
       const li = el('li');
+      li.insertAdjacentHTML('beforeend', A.portrait(it.params.kind));
       const open = el('button', 'open');
       open.type = 'button';
       open.append(document.createTextNode(it.title), el('small', null, it.lessonName));

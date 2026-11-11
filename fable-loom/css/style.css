@@ -12,6 +12,19 @@
   --field: #ffffff;
   --shadow: 0 1px 2px rgb(31 43 37 / 0.08), 0 12px 32px -12px rgb(31 43 37 / 0.25);
 
+
+  /* church stone */
+  --stone: #b8b0a0; --mortar: #9a917f; --tracery: #d3cbb9; --moulding: #8e8574; --floor: #8d8472;
+  /* stained glass: the same jewel colors in both themes, lit from behind */
+  --lead: #1b1814;
+  --g-b1: #1f4f8f; --g-b2: #2f6db3; --g-b3: #163a6e;
+  --g-r1: #8f1820; --g-r2: #bb2f2c;
+  --g-gd: #dfa235; --g-gd2: #f3d073; --g-am: #c2621c;
+  --g-g1: #2b7039; --g-g2: #43914c; --g-g2l: #8fcf8a;
+  --g-v1: #563779; --g-v2: #7a55a0;
+  --g-ol: #6d7a2a; --g-wh: #eee6cd;
+  --g-n1: #101c40; --g-n2: #1b2c5c; --g-gy: #6e7684; --g-gy2: #8a8f96;
+  --font-black: "UnifrakturMaguntia", "IM Fell English SC", Georgia, serif;
   --font-display: "IM Fell English SC", "IM Fell English", Georgia, "Times New Roman", serif;
   --font-body: "Spectral", Georgia, "Times New Roman", serif;
   --font-ui: "Spectral SC", "Spectral", Georgia, serif;
@@ -27,6 +40,7 @@
     --cloth: #0f1a16; --vellum: #17241f; --ink: #e6e4d6; --ink-soft: #a9b3a7;
     --rule: #2e4038; --gilt: #d4ad5a; --gilt-soft: #3b3420; --rubric: #e0796b;
     --field: #1d2c26; --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -16px rgb(0 0 0 / 0.6);
+    --stone: #34322d; --mortar: #24231f; --tracery: #4a463e; --moulding: #2a2824; --floor: #2a2824;
     color-scheme: dark;
   }
 }
@@ -34,6 +48,7 @@
   --cloth: #0f1a16; --vellum: #17241f; --ink: #e6e4d6; --ink-soft: #a9b3a7;
   --rule: #2e4038; --gilt: #d4ad5a; --gilt-soft: #3b3420; --rubric: #e0796b;
   --field: #1d2c26; --shadow: 0 1px 2px rgb(0 0 0 / 0.3), 0 16px 40px -16px rgb(0 0 0 / 0.6);
+    --stone: #34322d; --mortar: #24231f; --tracery: #4a463e; --moulding: #2a2824; --floor: #2a2824;
   color-scheme: dark;
 }
 
@@ -61,10 +76,10 @@ body {
 }
 .masthead h1 {
   margin: 0;
-  font-family: var(--font-display);
+  font-family: var(--font-black);
   font-weight: 400;
-  font-size: var(--step-2);
-  letter-spacing: 0.02em;
+  font-size: var(--step-3);
+  line-height: 1.1;
 }
 .masthead h1 span { color: var(--gilt); }
 .masthead p { margin: 0; color: var(--ink-soft); font-style: italic; }
@@ -219,12 +234,15 @@ button:hover { border-color: var(--gilt); }
   font-weight: 600;
 }
 .tale p.section:first-of-type::first-letter {
-  font-family: var(--font-display);
+  font-family: var(--font-black);
   color: var(--rubric);
+  background: var(--gilt-soft);
+  border: 2px solid var(--gilt);
   float: left;
-  font-size: 4.2em;
-  line-height: 0.82;
-  padding: 0.06em 0.1em 0 0;
+  font-size: 3.4em;
+  line-height: 1;
+  padding: 0.08em 0.14em 0.04em;
+  margin: 0.08em 0.14em 0 0;
 }
 
 .fleuron {
@@ -287,3 +305,65 @@ button:hover { border-color: var(--gilt); }
 @media (max-width: 520px) {
   .tale p.section { text-align: left; }
 }
+
+/* ---------- Stained glass ---------- */
+.sg .fig { fill: currentColor; }
+.sg .glass { stroke: var(--lead); stroke-width: 2.2; stroke-linejoin: round; }
+.sg .b1 { fill: var(--g-b1); } .sg .b2 { fill: var(--g-b2); } .sg .b3 { fill: var(--g-b3); }
+.sg .r1 { fill: var(--g-r1); } .sg .r2 { fill: var(--g-r2); }
+.sg .gd { fill: var(--g-gd); } .sg .gd2 { fill: var(--g-gd2); } .sg .am { fill: var(--g-am); }
+.sg .g1 { fill: var(--g-g1); } .sg .g2 { fill: var(--g-g2); } .sg .g2l { fill: var(--g-g2l); }
+.sg .v1 { fill: var(--g-v1); } .sg .v2 { fill: var(--g-v2); }
+.sg .ol { fill: var(--g-ol); } .sg .wh { fill: var(--g-wh); }
+.sg .n1 { fill: var(--g-n1); } .sg .n2 { fill: var(--g-n2); }
+.sg .gy { fill: var(--g-gy); } .sg .gy2 { fill: var(--g-gy2); }
+.sg .halo { stroke: var(--g-gd); stroke-width: 5; }
+.sg .lead { fill: var(--lead); }
+.sg .cutline, .sg .leadline { fill: none; stroke: var(--lead); stroke-width: 2.2; stroke-linecap: round; }
+.sg .rays { fill: none; stroke: var(--g-gd2); stroke-width: 3; stroke-linecap: round; }
+.sg .landmark-glass { stroke-width: 3.6; }
+
+/* Figures: a dilated lead copy underneath, the glass on top, painted details in lead. */
+.sg .lead-fig .fig { fill: var(--lead); stroke: var(--lead); }
+.sg .lead-fig .eye, .sg .lead-fig .cut { fill: var(--lead); stroke: var(--lead); }
+.sg .gold-fig .fig { fill: var(--g-gd2); stroke: var(--g-gd2); }
+.sg .white-fig .fig { fill: var(--g-wh); stroke: var(--g-wh); }
+.sg .gold-fig .cut, .sg .white-fig .cut { fill: var(--lead); stroke: var(--lead); }
+.sg .gold-fig .eye, .sg .white-fig .eye { fill: var(--lead); }
+
+/* The church around the windows */
+.sg .stone { fill: var(--stone); }
+.sg .floor { fill: var(--floor); }
+.sg .mortar { fill: none; stroke: var(--mortar); stroke-width: 1.5; }
+.sg .tracery { fill: var(--tracery); stroke: var(--lead); stroke-width: 2; }
+.sg .moulding { fill: var(--moulding); }
+.sg .band-gold { fill: none; stroke: var(--g-gd); stroke-width: 14; }
+.sg .band-jewel { fill: none; stroke: var(--g-r2); stroke-width: 14; stroke-dasharray: 7 7; }
+.sg .lead-frame { fill: none; stroke: var(--lead); stroke-width: 5; }
+.sg .virtue { font-family: var(--font-black); font-size: 17px; fill: var(--g-r1); }
+.sg .shaft { opacity: 0.2; }
+.sg .s-red { fill: var(--g-r2); } .sg .s-gold { fill: var(--g-gd2); } .sg .s-blue { fill: var(--g-b2); }
+
+.window {
+  margin: 0 0 28px;
+}
+.window svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+  border: 1px solid var(--rule);
+}
+.window figcaption {
+  margin-top: 8px;
+  text-align: center;
+  font-size: var(--step--1);
+  color: var(--ink-soft);
+  font-style: italic;
+}
+
+.hero-pick { display: flex; gap: 12px; align-items: center; }
+.hero-pick .field { flex: 1; min-width: 0; }
+.hero-pick .portrait { width: 64px; height: 64px; flex: none; }
+.moral .portrait { width: 96px; height: 96px; display: block; margin: 0 auto 10px; }
+.shelf li .portrait { width: 30px; height: 30px; flex: none; align-self: center; }
