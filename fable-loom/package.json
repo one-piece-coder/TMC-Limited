@@ -1,0 +1,22 @@
+{
+  "name": "fable-loom",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Grand animal fables with stained-glass windows, each ending with a moral and a lesson for real life.",
+  "scripts": {
+    "build": "node scripts/build.js",
+    "test": "node test/engine.test.js",
+    "ios:sync": "npm run build && npx cap sync ios",
+    "ios:open": "npx cap open ios"
+  },
+  "dependencies": {
+    "@capacitor/core": "8.6.0",
+    "@capacitor/haptics": "8.0.2",
+    "@capacitor/ios": "8.6.0",
+    "@capacitor/preferences": "8.0.1",
+    "@capacitor/share": "8.0.3"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.6.0"
+  }
+}

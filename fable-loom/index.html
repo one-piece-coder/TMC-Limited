@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#dfe5da">
+<meta name="description" content="Grand animal fables with stained-glass windows, each ending with a moral and a lesson for real life.">
 <title>The Fable Loom</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IM+Fell+English+SC&family=UnifrakturMaguntia&family=Spectral:ital,wght@0,400;0,600;1,400&family=Spectral+SC:wght@600&display=swap">
+<link rel="stylesheet" href="css/fonts.css">
 <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
@@ -69,6 +71,20 @@
   <ol class="shelf-row" id="shelf-row" tabindex="0" aria-label="Saved fables"></ol>
   <div class="plank" aria-hidden="true"></div>
 </section>
+
+<footer class="colophon">
+  <button type="button" id="btn-about">About &amp; privacy</button>
+</footer>
+
+<dialog id="about" aria-labelledby="about-title">
+  <h2 id="about-title">About The Fable Loom</h2>
+  <p>The Fable Loom weaves a new fable each time you ask: a flawed hero, a grand quest, trials that test them, and a moral with a lesson you can use in everyday life. Every story and window is made on your device. The app works without an internet connection.</p>
+  <h3>Privacy</h3>
+  <p>The Fable Loom collects no personal data. There are no accounts, ads, analytics or tracking. Fables you save stay on this device and are never sent anywhere. Names you type are used only to tell the story. Sharing a fable happens only when you choose Share, through your device’s own share sheet.</p>
+  <h3>Credits</h3>
+  <p>Typefaces: Spectral by Production Type, IM Fell English SC by Igino Marini, and UnifrakturMaguntia by j. ‘mach’ wust, all under the SIL Open Font License.</p>
+  <button type="button" id="about-close">Close</button>
+</dialog>
 
 <script src="js/fables.js"></script>
 <script src="js/illustrations.js"></script>

@@ -1,0 +1,11 @@
+{
+  "appId": "com.tmclimited.fableloom",
+  "appName": "Fable Loom",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never",
+    "backgroundColor": "#dfe5da",
+    "scrollEnabled": true,
+    "limitsNavigationsToAppBoundDomains": true
+  }
+}

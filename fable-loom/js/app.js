@@ -5,6 +5,12 @@
   const $ = (id) => document.getElementById(id);
   const SHELF_KEY = 'fable-loom-shelf';
 
+  // Running inside the iOS app (Capacitor) or in a browser?
+  const Cap = window.Capacitor;
+  const NATIVE = Boolean(Cap && Cap.isNativePlatform && Cap.isNativePlatform());
+  const Plugins = (Cap && Cap.Plugins) || {};
+  if (NATIVE) document.documentElement.classList.add('native');
+
   const form = $('loom-form');
   const lessonSel = $('lesson');
   const kindSel = $('kind');
@@ -157,7 +163,15 @@
     }
   }
   $('btn-copy').addEventListener('click', () => copy(E.toPlainText(current), 'Fable copied'));
-  $('btn-link').addEventListener('click', () => {
+  const linkBtn = $('btn-link');
+  if (NATIVE && Plugins.Share) linkBtn.textContent = 'Share';
+  linkBtn.addEventListener('click', () => {
+    if (NATIVE && Plugins.Share) {
+      // The app has no web address to share, so share the fable itself.
+      Plugins.Share.share({ title: current.title, text: E.toPlainText(current), dialogTitle: 'Share this fable' })
+        .catch(() => {});   // closing the share sheet is not an error
+      return;
+    }
     const url = location.href.split('#')[0] + '#' + hashFor(current);
     copy(url, 'Link copied. Anyone who opens it reads this same fable.');
   });
@@ -182,11 +196,35 @@
   });
 
   // ---------- The shelf (saved in this browser only) ----------
+  // In the app the shelf is kept in iOS app storage (Preferences), which the system
+  // does not clear the way it can clear web storage. A copy also goes to localStorage.
+  let shelfCache = null;
   function loadShelf() {
-    try { return JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch (err) { return []; }
+    if (!shelfCache) {
+      try { shelfCache = JSON.parse(localStorage.getItem(SHELF_KEY)) || []; } catch (err) { shelfCache = []; }
+    }
+    return shelfCache.slice();
   }
   function saveShelf(items) {
-    try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); return true; } catch (err) { return false; }
+    shelfCache = items.slice();
+    let ok = false;
+    try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); ok = true; } catch (err) { ok = false; }
+    if (NATIVE && Plugins.Preferences) {
+      Plugins.Preferences.set({ key: SHELF_KEY, value: JSON.stringify(items) }).catch(() => {});
+      ok = true;
+    }
+    return ok;
+  }
+  function restoreNativeShelf() {
+    if (!NATIVE || !Plugins.Preferences) return;
+    Plugins.Preferences.get({ key: SHELF_KEY }).then((res) => {
+      if (res && res.value) {
+        try { shelfCache = JSON.parse(res.value) || []; } catch (err) { return; }
+        drawShelf();
+      } else if (loadShelf().length) {
+        saveShelf(loadShelf());   // first launch with Preferences: keep what was saved before
+      }
+    }).catch(() => {});
   }
   // Each saved fable is shown as a bound book cover.
   function coverFor(it, i, justBound) {
@@ -275,6 +313,7 @@
       return;
     }
     say('Bound and placed on your shelf');
+    if (NATIVE && Plugins.Haptics) Plugins.Haptics.impact({ style: 'LIGHT' }).catch(() => {});
     drawShelf(current.seed);
     shelfRow.scrollTo({ left: 0, behavior: 'smooth' });
     $('bookshelf').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
@@ -293,4 +332,14 @@
   if (fromLink) openFromParams(fromLink);
   else show(E.generate({ seed: 1847 }));
   drawShelf();
+  restoreNativeShelf();
+
+  // ---------- About & privacy ----------
+  const about = $('about');
+  $('btn-about').addEventListener('click', () => {
+    if (typeof about.showModal === 'function') about.showModal(); else about.setAttribute('open', '');
+  });
+  $('about-close').addEventListener('click', () => {
+    if (typeof about.close === 'function') about.close(); else about.removeAttribute('open');
+  });
 })();
