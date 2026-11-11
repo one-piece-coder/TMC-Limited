@@ -424,7 +424,7 @@
       shafts + `</svg>`;
   }
 
-  const api = { creature, portrait, plate, kinds: Object.keys(CREATURES) };
+  const api = { creature, portrait, plate, virtues: VIRTUES, kinds: Object.keys(CREATURES) };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FableArt = api;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -36,10 +36,10 @@
       <button class="weave" type="submit">Weave a new fable</button>
     </form>
 
-    <section class="shelf" aria-labelledby="shelf-title">
-      <h2 id="shelf-title">your shelf</h2>
-      <ol id="shelf-list"></ol>
-      <p class="empty" id="shelf-empty">Fables you save appear here.</p>
+    <section class="shelf-note">
+      <h2>your shelf</h2>
+      <p id="shelf-count">No fables saved yet.</p>
+      <a href="#bookshelf" id="shelf-jump">Browse the covers</a>
     </section>
   </aside>
 
@@ -56,6 +56,19 @@
     <p class="toast" id="toast" role="status"></p>
   </article>
 </main>
+
+<section class="bookshelf" id="bookshelf" aria-labelledby="bookshelf-title">
+  <div class="bookshelf-head">
+    <h2 id="bookshelf-title">Your Shelf</h2>
+    <p id="bookshelf-sub">Choose a cover to read that fable again.</p>
+    <div class="bookshelf-nav">
+      <button type="button" id="shelf-prev" aria-label="Look at earlier covers">‹</button>
+      <button type="button" id="shelf-next" aria-label="Look at later covers">›</button>
+    </div>
+  </div>
+  <ol class="shelf-row" id="shelf-row" tabindex="0" aria-label="Saved fables"></ol>
+  <div class="plank" aria-hidden="true"></div>
+</section>
 
 <script src="js/fables.js"></script>
 <script src="js/illustrations.js"></script>

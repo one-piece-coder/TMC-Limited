@@ -14,6 +14,7 @@
   const readBtn = $('btn-read');
 
   let current = null;
+  let shelfReady = false;
   let toastTimer = 0;
 
   const cap = (s) => s.charAt(0).toUpperCase() + s.slice(1);
@@ -94,6 +95,7 @@
     void tale.offsetWidth;
     tale.classList.add('fresh');
 
+    if (typeof drawShelf === 'function' && shelfReady) drawShelf();
     const h = '#' + hashFor(f);
     if (location.hash !== h) history.replaceState(null, '', h);
   }
@@ -186,31 +188,74 @@
   function saveShelf(items) {
     try { localStorage.setItem(SHELF_KEY, JSON.stringify(items)); return true; } catch (err) { return false; }
   }
-  function drawShelf() {
-    const items = loadShelf();
-    const list = $('shelf-list');
-    list.replaceChildren();
-    $('shelf-empty').hidden = items.length > 0;
-    items.forEach((it, i) => {
-      const li = el('li');
-      li.insertAdjacentHTML('beforeend', A.portrait(it.params.kind));
-      const open = el('button', 'open');
-      open.type = 'button';
-      open.append(document.createTextNode(it.title), el('small', null, it.lessonName));
-      open.addEventListener('click', () => openFromParams(it.params));
-      const rm = el('button', 'remove', '×');
-      rm.type = 'button';
-      rm.setAttribute('aria-label', 'Remove ' + it.title);
-      rm.addEventListener('click', () => {
-        const next = loadShelf();
-        next.splice(i, 1);
-        saveShelf(next);
-        drawShelf();
-      });
-      li.append(open, rm);
-      list.append(li);
+  // Each saved fable is shown as a bound book cover.
+  function coverFor(it, i, justBound) {
+    const f = E.generate(it.params);
+    const li = el('li', 'book-slot');
+    const btn = el('button', 'cover');
+    btn.type = 'button';
+    btn.dataset.lesson = f.lesson.id;
+    if (current && current.seed === f.seed && current.lesson.id === f.lesson.id && current.hero.kind === f.hero.kind) {
+      btn.classList.add('reading');
+      li.append(el('span', 'ribbon', 'reading'));
+    }
+    if (justBound) li.classList.add('just-bound');
+    btn.setAttribute('aria-label', `Read ${f.title}, a fable of ${f.lesson.name.toLowerCase()}`);
+
+    const frame = el('span', 'cover-frame');
+    frame.append(el('span', 'cover-no', 'Fable No. ' + f.seed));
+    frame.append(el('span', 'cover-title', f.title));
+    const art = el('span', 'cover-art');
+    art.innerHTML = A.portrait(f.hero.kind);
+    frame.append(art);
+    frame.append(el('span', 'cover-virtue', A.virtues[f.lesson.id] || f.lesson.name));
+    frame.append(el('span', 'cover-hero', `${f.hero.name} the ${f.hero.kind}`));
+    btn.append(frame);
+    btn.addEventListener('click', () => {
+      openFromParams(it.params);
+      drawShelf();
+      document.querySelector('.page').scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
+
+    const rm = el('button', 'remove', '×');
+    rm.type = 'button';
+    rm.setAttribute('aria-label', 'Remove ' + f.title + ' from the shelf');
+    rm.addEventListener('click', () => {
+      const next = loadShelf();
+      next.splice(i, 1);
+      saveShelf(next);
+      drawShelf();
+    });
+    li.append(btn, rm);
+    return li;
   }
+
+  function drawShelf(justBoundSeed) {
+    const items = loadShelf();
+    const row = $('shelf-row');
+    row.replaceChildren();
+    items.forEach((it, i) => row.append(coverFor(it, i, it.params.seed === justBoundSeed)));
+    if (!items.length) {
+      const empty = el('li', 'book-slot');
+      const ph = el('div', 'cover placeholder');
+      ph.append(el('span', 'cover-frame', 'An empty place on the shelf. Choose Save to shelf and the fable is bound here with its own cover.'));
+      empty.append(ph);
+      row.append(empty);
+    }
+    const n = items.length;
+    $('shelf-count').textContent = n ? `${n} fable${n === 1 ? '' : 's'} bound and shelved.` : 'No fables saved yet.';
+    $('bookshelf-sub').textContent = n ? 'Choose a cover to read that fable again.' : 'Saved fables appear here as books.';
+  }
+
+  const shelfRow = $('shelf-row');
+  const scrollShelf = (dir) => shelfRow.scrollBy({ left: dir * shelfRow.clientWidth * 0.8, behavior: 'smooth' });
+  $('shelf-prev').addEventListener('click', () => scrollShelf(-1));
+  $('shelf-next').addEventListener('click', () => scrollShelf(1));
+  $('shelf-jump').addEventListener('click', (e) => {
+    e.preventDefault();
+    $('bookshelf').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
   $('btn-save').addEventListener('click', () => {
     const items = loadShelf();
     if (items.some((it) => it.title === current.title && it.params.seed === current.seed)) {
@@ -225,8 +270,14 @@
         name: current.hero.custom ? current.hero.name : ''
       }
     });
-    say(saveShelf(items.slice(0, 30)) ? 'Saved to your shelf' : 'This browser won’t let the page save. Copy the link instead.');
-    drawShelf();
+    if (!saveShelf(items.slice(0, 30))) {
+      say('This browser won’t let the page save. Copy the link instead.');
+      return;
+    }
+    say('Bound and placed on your shelf');
+    drawShelf(current.seed);
+    shelfRow.scrollTo({ left: 0, behavior: 'smooth' });
+    $('bookshelf').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   });
 
   // ---------- Start ----------
@@ -237,8 +288,9 @@
     }
   });
 
-  drawShelf();
+  shelfReady = true;
   const fromLink = parseHash();
   if (fromLink) openFromParams(fromLink);
   else show(E.generate({ seed: 1847 }));
+  drawShelf();
 })();

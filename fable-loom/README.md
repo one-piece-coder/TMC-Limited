@@ -19,7 +19,7 @@ Open `index.html` in any browser. No build step or server needed.
   or leave them on "Any" for a surprise.
 - **Another like this** keeps the lesson and hero and tells a new tale.
 - **Read aloud** uses the browser's speech voice.
-- **Save to shelf** keeps fables in this browser; **Copy link** shares the exact fable
+- **Save to shelf** binds the fable as a book with its own cover (leather colored by lesson, the hero in a rose window, the virtue in Latin) and places it on the bookshelf below the story, where you can browse the covers and pick one to read again. Saved fables stay in this browser; **Copy link** shares the exact fable
   (every fable is reproducible from its number and settings).
 
 ## Files
